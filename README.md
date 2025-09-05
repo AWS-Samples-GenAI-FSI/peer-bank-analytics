@@ -4,7 +4,7 @@
 ## Overview of Solution
 This is sample code demonstrating the use of Amazon Bedrock and Generative AI to create an intelligent banking peer analytics platform that provides real-time comparison and financial analysis using FDIC data. This example leverages live FDIC API data with 10 major US banks and 6 key banking metrics including ROA, ROE, NIM, Tier 1 Capital, LDR, and CRE Concentration.
 
-![Demo](demo.gif)
+![Demo](images/demo.gif)
 
 ## Goal of this POC
 The goal of this repo is to provide users the ability to use Amazon Bedrock and generative AI to analyze banking performance metrics, compare peer banks, and generate intelligent insights about financial trends. The system automatically retrieves real-time data from FDIC APIs and uses Claude AI to provide comprehensive analysis and recommendations.
