@@ -6,7 +6,7 @@ AI-powered banking analytics platform that provides real-time peer comparison an
 
 ## 🎬 Demo
 
-![Demo](demo.mp4)
+![Demo](demo.gif)
 
 *Features demonstrated: Real FDIC data integration, Claude AI analysis, interactive charts, and peer bank comparisons*
 
