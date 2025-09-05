@@ -1,5 +1,7 @@
 # 🏦 Banking Peer Analytics
 
+**Authors:** Shashi Makkapati, Senthil Kamala Rathinam, Jacob Scheatzle
+
 AI-powered banking analytics platform that provides real-time peer comparison and financial analysis using FDIC data and Amazon Bedrock's Claude AI.
 
 ## 🚀 Features
