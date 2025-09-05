@@ -26,7 +26,7 @@ def get_index(): #creates and returns an in-memory vector store to be used in th
     
     embeddings = BedrockEmbeddings() #create a Titan Embeddings client
     
-    pdf_path = "data/quarterly_consolidated_file.pdf" #assumes local PDF file with this name
+    pdf_path = "sample-data/First Citizens-2023-10k.pdf" #assumes local PDF file with this name
 
     loader = PyPDFLoader(file_path=pdf_path) #load the pdf file
     
