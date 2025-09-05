@@ -83,7 +83,7 @@ src/monitoring/ - Monitoring and observability components
 src/vector_store/ - Vector database components
 src/graph/ - Workflow orchestration components
 src/prompts/ - AI prompt templates
-sample-data/ - Sample financial reports
+
 images/ - UI assets and architecture diagrams
 scripts/ - Utility scripts for setup and maintenance
 .env.example - Environment configuration template
