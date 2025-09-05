@@ -4,6 +4,14 @@
 
 AI-powered banking analytics platform that provides real-time peer comparison and financial analysis using FDIC data and Amazon Bedrock's Claude AI.
 
+## 🎬 Demo
+
+Watch the Banking Peer Analytics platform in action:
+
+[![Demo Video](https://img.shields.io/badge/▶️-Watch%20Demo-blue?style=for-the-badge)](./demo.mp4)
+
+*Features demonstrated: Real FDIC data integration, Claude AI analysis, interactive charts, and peer bank comparisons*
+
 ## 🚀 Features
 
 ### 📊 **Real-Time Data Integration**
