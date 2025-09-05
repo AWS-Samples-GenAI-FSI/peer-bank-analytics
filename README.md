@@ -77,8 +77,16 @@ pages/1_Peer_bank_analytics.py - FDIC data analysis and visualization
 pages/2_Financial_Reports_Analyzer.py - Financial report analysis
 src/bedrock/bedrock_helper.py - Amazon Bedrock client wrapper
 src/utils/ui_helpers.py - UI components and helpers
-data/ - Sample data files
-images/ - UI assets
+src/utils/bank_config.ini - Application configuration
+src/utils/style.css - Custom CSS styling
+src/monitoring/ - Monitoring and observability components
+src/vector_store/ - Vector database components
+src/graph/ - Workflow orchestration components
+src/prompts/ - AI prompt templates
+data/ - Sample banking data files
+sample-data/ - Sample financial reports
+images/ - UI assets and architecture diagrams
+scripts/ - Utility scripts for setup and maintenance
 .env.example - Environment configuration template
 ```
 
