@@ -1,0 +1,79 @@
+/* Style for the page title */
+.title {
+    font-size: 36px;
+    font-weight: bold;
+    color: #1E90FF;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+/* Style for the sidebar */
+.sidebar {
+    background-color: #E0FFFF;
+    border-radius: 5px;
+    padding: 20px;
+}
+
+.sidebar-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #333333;
+    margin-bottom: 10px;
+}
+
+.sidebar-control {
+    margin-bottom: 20px;
+}
+
+/* Style for the main content area */
+.main {
+    background-color: #FFFFFF;
+    border-radius: 5px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.metric-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333333;
+    margin-bottom: 10px;
+}
+
+.data-container {
+    margin-top: 20px;
+}
+
+/* Style for the summary section */
+.summary-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #333333;
+    margin-bottom: 10px;
+}
+
+.summary-text {
+    font-size: 16px;
+    color: #333333;
+    line-height: 1.5;
+}
+
+/* Style for the download button */
+.download-button {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.download-button a {
+    display: inline-block;
+    background-color: #1E90FF;
+    color: #FFFFFF;
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+}
+
+.download-button a:hover {
+    background-color: #1C86EE;
+}

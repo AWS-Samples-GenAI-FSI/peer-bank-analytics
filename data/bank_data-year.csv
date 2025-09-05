@@ -1,0 +1,67 @@
+Bank,Bank Type,Metric,Year,Date,Value
+First Citizens BancShares,Base Bank,CRE Concentration Ratio,2022,12/31/2022,0.75
+First Citizens BancShares,Base Bank,CRE Concentration Ratio,2023,12/31/2023,0.78
+First Citizens BancShares,Base Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.65
+First Citizens BancShares,Base Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.68
+First Citizens BancShares,Base Bank,Net Interest Margin (NIM),2022,12/31/2022,0.55
+First Citizens BancShares,Base Bank,Net Interest Margin (NIM),2023,12/31/2023,0.58
+Huntington Bancshares,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.72
+Huntington Bancshares,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.75
+Huntington Bancshares,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.68
+Huntington Bancshares,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.71
+Huntington Bancshares,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.58
+Huntington Bancshares,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.61
+Regions Financial Corporation,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.68
+Regions Financial Corporation,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.71
+Regions Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.62
+Regions Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.65
+Regions Financial Corporation,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.52
+Regions Financial Corporation,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.55
+Comerica Incorporated,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.71
+Comerica Incorporated,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.74
+Comerica Incorporated,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.66
+Comerica Incorporated,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.69
+Comerica Incorporated,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.56
+Comerica Incorporated,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.59
+Cullen Frost Bankers Inc,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.66
+Cullen Frost Bankers Inc,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.69
+Cullen Frost Bankers Inc,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.61
+Cullen Frost Bankers Inc,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.64
+Cullen Frost Bankers Inc,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.51
+Cullen Frost Bankers Inc,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.54
+BOK Financial Corporation,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.64
+BOK Financial Corporation,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.67
+BOK Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.57
+BOK Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.6
+BOK Financial Corporation,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.47
+BOK Financial Corporation,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.5
+First Horizon Corporation,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.67
+First Horizon Corporation,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.7
+First Horizon Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.6
+First Horizon Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.63
+First Horizon Corporation,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.5
+First Horizon Corporation,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.53
+Wintrust Financial Corporation,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.63
+Wintrust Financial Corporation,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.66
+Wintrust Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.56
+Wintrust Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.59
+Wintrust Financial Corporation,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.46
+Wintrust Financial Corporation,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.49
+MT Bank Corporation,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.7
+MT Bank Corporation,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.73
+MT Bank Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.64
+MT Bank Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.67
+MT Bank Corporation,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.54
+MT Bank Corporation,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.57
+Zions Bancorporation,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.62
+Zions Bancorporation,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.65
+Zions Bancorporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.55
+Zions Bancorporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.58
+Zions Bancorporation,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.45
+Zions Bancorporation,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.48
+Webster Financial Corporation,Peer Bank,CRE Concentration Ratio,2022,12/31/2022,0.61
+Webster Financial Corporation,Peer Bank,CRE Concentration Ratio,2023,12/31/2023,0.64
+Webster Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2022,12/31/2022,0.54
+Webster Financial Corporation,Peer Bank,Loan-to-Deposit Ratio (LDR),2023,12/31/2023,0.57
+Webster Financial Corporation,Peer Bank,Net Interest Margin (NIM),2022,12/31/2022,0.44
+Webster Financial Corporation,Peer Bank,Net Interest Margin (NIM),2023,12/31/2023,0.47
