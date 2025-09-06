@@ -6,7 +6,7 @@ from src.utils.ui_helpers import * ###### Import custom utility functions
 
     # Custom column layout with increased width for col1 and col3, and moving them down by 20pt
 config_object = ConfigParser()
-config_object.read("bank_config.ini")
+config_object.read("src/utils/bank_config.ini")
 hline=Image.open(config_object["IMAGES"]["hline"]) ###### image for formatting landing screen
 
 #st.set_page_config(page_title="My App", layout="wide")
