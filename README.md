@@ -44,6 +44,8 @@ When a user interacts with the POC, the flow is as follows:
 9. Capital One
 10. TD Bank
 
+*Note: This project currently focuses on the top 10 US banks by assets, but can be easily customized to include any FDIC-insured institution based on individual bank's peer analysis requirements.*
+
 ## Banking Metrics
 - **ROA** - Return on Assets: Net income as % of average assets
 - **ROE** - Return on Equity: Net income as % of average equity
