@@ -1,6 +1,12 @@
 # Banking Peer Analytics POC
 **Authors:** Shashi Makkapati, Senthil Kamala Rathinam, Jacob Scheatzle
 
+## Background & Strategic Context
+
+In today's competitive banking landscape, financial institutions require sophisticated peer analysis capabilities to maintain regulatory compliance, optimize performance, and make strategic decisions. Traditional banking analytics often rely on static reports and manual processes, creating delays in identifying market trends and competitive positioning. Banks need real-time access to standardized financial metrics across peer institutions to benchmark their performance against industry leaders, assess risk exposure, and demonstrate regulatory compliance to federal agencies like the FDIC and Federal Reserve.
+
+The advent of Generative AI has revolutionized how financial institutions can process and interpret complex banking data. This Banking Peer Analytics platform represents a paradigm shift from traditional rule-based analytics to intelligent, context-aware financial analysis. By integrating Amazon Bedrock's Claude AI with real-time FDIC data, the platform doesn't just present numbers—it understands relationships between metrics, identifies emerging trends, and generates human-like insights that would typically require teams of financial analysts. The AI can instantly correlate a bank's declining Net Interest Margin with industry-wide patterns, explain the strategic implications of Tier 1 Capital changes, or predict potential regulatory concerns based on CRE concentration trends. This GenAI-powered approach transforms raw regulatory data into conversational insights, enabling bank executives to ask natural language questions like "Why is our ROA underperforming compared to similar-sized banks?" and receive comprehensive, contextual analysis that considers market conditions, regulatory environment, and peer performance—capabilities that were impossible with traditional analytics tools.
+
 ## Overview of Solution
 This is sample code demonstrating the use of Amazon Bedrock and Generative AI to create an intelligent banking peer analytics platform that provides real-time comparison and financial analysis using FDIC data. This example leverages live FDIC API data with 10 major US banks and 6 key banking metrics including ROA, ROE, NIM, Tier 1 Capital, LDR, and CRE Concentration.
 
