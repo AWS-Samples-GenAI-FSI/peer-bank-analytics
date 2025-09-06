@@ -406,7 +406,7 @@ def run_app():
         with open(file_name) as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-    local_css("style.css")
+    local_css("src/utils/style.css")
 
     # Add custom CSS to apply the theme
     st.markdown("""
