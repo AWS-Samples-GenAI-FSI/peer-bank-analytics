@@ -530,13 +530,23 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         st.info("👆 Please select a data source above to begin analysis")
         return
     
-    # Base bank selection
+    # Base bank selection - auto-detect for uploaded CSV or manual for FDIC
     all_banks = data_quarters['Bank'].unique()
-    default_base = next((bank for bank in all_banks if 'JPMORGAN' in bank.upper() or 'CHASE' in bank.upper()), all_banks[0])
-    selected_base_bank = st.sidebar.selectbox("#### :green[Select base bank]", all_banks, 
-                                             index=list(all_banks).index(default_base),
-                                             key="base_bank_selection",
-                                             help="Select the base bank for comparison.")
+    
+    if data_source == "Upload CSV" and len(all_banks) > 0:
+        # Auto-select first bank as base bank for uploaded CSV
+        selected_base_bank = all_banks[0]
+        st.sidebar.info(f"🎯 Auto-selected base bank: **{selected_base_bank}**")
+    else:
+        # Manual selection for FDIC data
+        if len(all_banks) == 0:
+            st.error("No banks found in data")
+            return
+        default_base = next((bank for bank in all_banks if 'JPMORGAN' in bank.upper() or 'CHASE' in bank.upper()), all_banks[0])
+        selected_base_bank = st.sidebar.selectbox("#### :green[Select base bank]", all_banks, 
+                                                 index=list(all_banks).index(default_base),
+                                                 key="base_bank_selection",
+                                                 help="Select the base bank for comparison.")
     
     # Update Bank Type based on selection
     data_quarters['Bank Type'] = data_quarters['Bank'].apply(
@@ -550,9 +560,15 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     
     # Peer bank selection (exclude selected base bank)
     available_peer_banks = [bank for bank in all_banks if bank != selected_base_bank]
-    selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison]", available_peer_banks,
-                                                 default=available_peer_banks[:2], key="peer_bank_selection",
-                                                 help="Select the peer banks to include in the comparison.")
+    
+    if len(available_peer_banks) > 0:
+        default_peers = available_peer_banks[:2] if len(available_peer_banks) >= 2 else available_peer_banks
+        selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison]", available_peer_banks,
+                                                     default=default_peers, key="peer_bank_selection",
+                                                     help="Select the peer banks to include in the comparison.")
+    else:
+        selected_peer_banks = []
+        st.sidebar.warning("⚠️ No peer banks available (only one bank in dataset)")
     
     st.sidebar.image(hline)
     
@@ -609,40 +625,49 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
 
     st.sidebar.image(hline)
 
-    # Time period selection
-    period_type = st.sidebar.radio("#### :green[Select time period type]", ["Quarters", "Years"], key="period_type_selection",
+    # Time period selection - limit to Quarters for uploaded CSV
+    if data_source == "Upload CSV":
+        period_options = ["Quarters"]
+        st.sidebar.info("📊 Uploaded CSV data uses Quarters view only")
+    else:
+        period_options = ["Quarters", "Years"]
+    
+    period_type = st.sidebar.radio("#### :green[Select time period type]", period_options, key="period_type_selection",
                                    help="Choose whether to analyze data by quarters or years.")
-    if period_type == "Quarters":
-        data = data_quarters
-        base_bank = selected_base_bank
-        quarters = data['Quarter'].unique()
+    
+    # Set data and period based on selection
+    if len(data_quarters) == 0 or 'Quarter' not in data_quarters.columns:
+        st.sidebar.error("No valid data found. Please check your CSV format.")
+        st.error("Data issue: Please ensure your CSV has 'Quarter' column with values like '2024-Q1'")
+        return
+        
+    quarters = sorted(data_quarters['Quarter'].unique())
+    
+    if len(quarters) == 0:
+        st.sidebar.error("No quarters found in Quarter column")
+        st.error("Please check your CSV Quarter column has values like: 2024-Q1, 2024-Q2, etc.")
+        return
+    elif len(quarters) == 1:
+        # Only one quarter, no slider needed
+        start_quarter = end_quarter = quarters[0]
+        st.sidebar.info(f"📅 Single quarter: {start_quarter}")
+        period = f"for {start_quarter}"
+    else:
+        # Multiple quarters, use slider
         start_quarter, end_quarter = st.sidebar.select_slider("#### :green[Select period]", options=quarters,
                                                                value=(quarters[0], quarters[-1]),
                                                                key="quarter_period_selection",
                                                                help="Select the range of quarters to analyze.")
         period = f"from {start_quarter} to {end_quarter}"
-    else:
-        data = data_years
-        base_bank = selected_base_bank
-        current_year = datetime.now().year
-        years = [year for year in range(current_year - 3, current_year + 1) if year in data['Year'].unique()]
-        if not years:
-            st.warning("No data available for the current year and previous 3 years.")
-            start_year, end_year = None, None
-            period = ""
-        else:
-            start_year, end_year = st.sidebar.select_slider("Select period", options=years, value=(years[0], years[-1]),
-                                                             key="year_period_selection",
-                                                             help="Select the range of years to analyze.")
-            period = f"from {start_year} to {end_year}"
 
-    # Use the appropriate dataset
+    # Use the appropriate dataset for filtering
     if period_type == "Quarters":
         data = data_quarters.copy()
     else:
         data = data_years.copy()
     
     # Filter data based on selections
+    base_bank = selected_base_bank
     filtered_data = data[(data['Bank'] == base_bank) | (data['Bank'].isin(selected_peer_banks))]
     filtered_data = filtered_data[filtered_data['Metric'] == selected_metric]
     if period_type == "Quarters":
@@ -656,11 +681,16 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
                            title=f"<b><span style='font-size: 24px;'>{selected_metric} Comparison ({period})</span></b>")
         fig_line.update_layout(title_font_size=24, xaxis_title='Quarter')
 
-        # Heatmap
-        pivot_data = filtered_data.pivot_table(index='Quarter', columns='Bank', values='Value', aggfunc='mean')
-        fig_heatmap = px.imshow(pivot_data,
-                                title=f"<b><span style='font-size: 24px;'>Heatmap for {selected_metric} ({period})</span></b>",
-                                text_auto=True, x=pivot_data.columns, y=pivot_data.index)
+        # Radar Chart - Multi-metric comparison
+        radar_data = data_quarters[data_quarters['Bank'].isin([base_bank] + selected_peer_banks)]
+        latest_quarter = radar_data['Quarter'].max()
+        radar_subset = radar_data[radar_data['Quarter'] == latest_quarter]
+        
+        fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
+                                 line_close=True, 
+                                 title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_quarter})</span></b>")
+        fig_radar.update_traces(fill='toself', opacity=0.6)
+        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
 
         # Bar chart
         bar_data = filtered_data.groupby(['Bank', 'Quarter'])['Value'].mean().reset_index()
@@ -671,23 +701,28 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         # Add a horizontal line after the bar chart
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # Display line chart and heatmap side by side
-        col_line, col_heatmap = st.columns(2)
+        # Display line chart and radar chart side by side
+        col_line, col_radar = st.columns(2)
         with col_line:
             st.plotly_chart(fig_line, use_container_width=True)
-        with col_heatmap:
-            st.plotly_chart(fig_heatmap, use_container_width=True)
+        with col_radar:
+            st.plotly_chart(fig_radar, use_container_width=True)
 
     else:
         fig_line = px.line(filtered_data, x='Year', y='Value', color='Bank',
                            title=f"<b><span style='font-size: 24px;'>{selected_metric} Comparison ({period})</span></b>")
         fig_line.update_layout(title_font_size=24, xaxis_title='Year', xaxis_tickformat='%Y')  # Display years as full integers
 
-        # Heatmap
-        pivot_data = filtered_data.pivot_table(index='Year', columns='Bank', values='Value', aggfunc='mean')
-        fig_heatmap = px.imshow(pivot_data,
-                                title=f"<b><span style='font-size: 24px;'>Heatmap for {selected_metric} ({period})</span></b>",
-                                text_auto=True, x=pivot_data.columns, y=pivot_data.index.map(str))  # Display years as full integers
+        # Radar Chart - Multi-metric comparison
+        radar_data = data_years[data_years['Bank'].isin([base_bank] + selected_peer_banks)]
+        latest_year = radar_data['Year'].max()
+        radar_subset = radar_data[radar_data['Year'] == latest_year]
+        
+        fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
+                                 line_close=True,
+                                 title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_year})</span></b>")
+        fig_radar.update_traces(fill='toself', opacity=0.6)
+        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
 
 		# Bar chart
         bar_data = filtered_data.groupby(['Bank', 'Year'])['Value'].mean().reset_index()
@@ -699,12 +734,12 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         # Add a horizontal line after the bar chart
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # Display line chart and heatmap side by side
-        col_line, col_heatmap = st.columns(2)
+        # Display line chart and radar chart side by side
+        col_line, col_radar = st.columns(2)
         with col_line:
             st.plotly_chart(fig_line, use_container_width=True)
-        with col_heatmap:
-            st.plotly_chart(fig_heatmap, use_container_width=True)
+        with col_radar:
+            st.plotly_chart(fig_radar, use_container_width=True)
 
     # Add another horizontal line before the summary section
     st.markdown("<hr>", unsafe_allow_html=True)

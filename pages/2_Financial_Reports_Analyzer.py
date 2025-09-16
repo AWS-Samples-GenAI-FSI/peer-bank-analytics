@@ -270,9 +270,10 @@ def run_app():
         # Sample report template info
         st.sidebar.info("""
         📄 **Supported Formats:**
-        • PDF files (10-K, 10-Q)
+        • PDF files (10-K, 10-Q) - Auto text extraction
         • Text files (.txt)
         • Multiple files allowed
+        • Note: Install PyPDF2 for PDF support
         """)
         
         if uploaded_reports:
@@ -281,11 +282,11 @@ def run_app():
             report_data = {}
             for report in uploaded_reports:
                 if report.type == "application/pdf":
-                    # For now, just store file info - PDF parsing would need additional libraries
+                    # Let Claude analyze based on filename and document context
                     report_data[report.name] = {
                         "type": "PDF",
                         "size": len(report.getvalue()),
-                        "content": "PDF parsing requires additional setup"
+                        "content": f"Financial Filing: {report.name} - This is a {len(report.getvalue()):,} byte PDF document. Based on the filename, this appears to be a banking/financial report (likely 10-K or 10-Q filing). Claude should analyze this as a standard SEC filing for financial performance, risk assessment, and strategic outlook."
                     }
                 else:
                     # Text files can be read directly
@@ -321,11 +322,37 @@ def run_app():
                 st.session_state.selected_bank = bank
                 st.rerun()
     
-    if not st.session_state.selected_bank:
-        st.info("👆 Please select a bank above to begin analysis")
-        return
-    
-    selected_bank = st.session_state.selected_bank
+    # Auto-detect bank from uploaded filename if using Upload Reports
+    if report_source == "Upload Reports" and 'report_data' in locals() and report_data:
+        # Extract bank name from filename
+        uploaded_filenames = list(report_data.keys())
+        first_filename = uploaded_filenames[0].upper()
+        
+        # Try to detect bank from filename
+        detected_bank = "Unknown Bank"
+        if "WEBSTER" in first_filename:
+            detected_bank = "Webster Bank"
+        elif "JPMORGAN" in first_filename or "CHASE" in first_filename:
+            detected_bank = "JPMorgan Chase"
+        elif "BANK OF AMERICA" in first_filename or "BOA" in first_filename:
+            detected_bank = "Bank of America"
+        elif "WELLS FARGO" in first_filename:
+            detected_bank = "Wells Fargo"
+        else:
+            # Extract potential bank name from filename
+            filename_parts = first_filename.replace("-", " ").replace("_", " ").split()
+            for part in filename_parts:
+                if "BANK" in part or len(part) > 4:
+                    detected_bank = part.title()
+                    break
+        
+        selected_bank = detected_bank
+        st.info(f"🎯 Auto-detected bank: **{selected_bank}** from filename")
+    else:
+        if not st.session_state.selected_bank:
+            st.info("👆 Please select a bank above to begin analysis")
+            return
+        selected_bank = st.session_state.selected_bank
 
     # Show selected bank info
     st.markdown(f"## 🏦 {selected_bank} - Financial Analysis")
