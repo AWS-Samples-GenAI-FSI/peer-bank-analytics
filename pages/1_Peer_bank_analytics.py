@@ -466,23 +466,32 @@ def run_app():
     st.markdown("<h1 style='text-align: center; color: #4B91F1; font-family: Arial, sans-serif; font-weight: bold;'>Peer Bank Analytics</h1>", unsafe_allow_html=True)
 
     # Sidebar for selection controls
+    # Base bank selection
+    all_banks = data_quarters['Bank'].unique()
+    default_base = next((bank for bank in all_banks if 'JPMORGAN' in bank.upper() or 'CHASE' in bank.upper()), all_banks[0])
+    selected_base_bank = st.sidebar.selectbox("#### :blue[Select base bank]", all_banks, 
+                                             index=list(all_banks).index(default_base),
+                                             key="base_bank_selection",
+                                             help="Select the base bank for comparison.")
+    
+    # Update Bank Type based on selection
+    data_quarters['Bank Type'] = data_quarters['Bank'].apply(
+        lambda x: 'Base Bank' if x == selected_base_bank else 'Peer Bank'
+    )
+    data_years['Bank Type'] = data_years['Bank'].apply(
+        lambda x: 'Base Bank' if x == selected_base_bank else 'Peer Bank'
+    )
+    
+    st.sidebar.image(hline)
+    
     # Metric selection
     metrics = metric_data["Metric Name"].tolist()
     selected_metric = st.sidebar.selectbox("#### :blue[Select a metric]", metrics, key="metric_selection",
                                            help="Select the metric to analyze.")
     selected_metric_description = metric_data.loc[metric_data["Metric Name"] == selected_metric, "Metric Description"].values[0]
    # st.sidebar.image(hline) ###### Add horizontal line
-    # Display tiles - with safety check
-    base_banks_q = data_quarters[data_quarters['Bank Type'] == 'Base Bank']['Bank'].unique()
-    base_banks_y = data_years[data_years['Bank Type'] == 'Base Bank']['Bank'].unique()
-    
-    if len(base_banks_q) == 0 or len(base_banks_y) == 0:
-        st.error("No base bank found in data. Please check data structure.")
-        return
-        
-    base_bank_quarters = base_banks_q[0]
-    base_bank_years = base_banks_y[0]
-    base_bank_name = base_bank_quarters if base_bank_quarters == base_bank_years else f"{base_bank_quarters} (Quarters) / {base_bank_years} (Years)"
+    # Display tiles - using selected base bank
+    base_bank_name = selected_base_bank
 
     peer_banks_quarters = data_quarters[data_quarters['Bank Type'] == 'Peer Bank']['Bank'].unique()
     peer_banks_years = data_years[data_years['Bank Type'] == 'Peer Bank']['Bank'].unique()
@@ -528,11 +537,10 @@ def run_app():
 
     #st.sidebar.markdown("---")  # Add a horizontal line for separation
     st.sidebar.image(hline) ###### Add horizontal line
-    # Peer bank selection
-    peer_banks_quarters = data_quarters[data_quarters['Bank Type'] == 'Peer Bank']['Bank'].unique()
-    peer_banks_years = data_years[data_years['Bank Type'] == 'Peer Bank']['Bank'].unique()
-    selected_peer_banks = st.sidebar.multiselect("#### :blue[Select peer banks for comparison]", peer_banks_quarters,
-                                                 default=peer_banks_quarters[:2], key="peer_bank_selection",
+    # Peer bank selection (exclude selected base bank)
+    available_peer_banks = [bank for bank in all_banks if bank != selected_base_bank]
+    selected_peer_banks = st.sidebar.multiselect("#### :blue[Select peer banks for comparison]", available_peer_banks,
+                                                 default=available_peer_banks[:2], key="peer_bank_selection",
                                                  help="Select the peer banks to include in the comparison.")
     #st.sidebar.markdown("---")  # Add a horizontal line for separation
     st.sidebar.image(hline) ###### Add horizontal line
@@ -542,8 +550,7 @@ def run_app():
                                    help="Choose whether to analyze data by quarters or years.")
     if period_type == "Quarters":
         data = data_quarters
-        base_bank = base_bank_quarters
-        peer_banks = peer_banks_quarters
+        base_bank = selected_base_bank
         quarters = data['Quarter'].unique()
         start_quarter, end_quarter = st.sidebar.select_slider("#### :blue[Select period]", options=quarters,
                                                                value=(quarters[0], quarters[-1]),
@@ -552,8 +559,7 @@ def run_app():
         period = f"from {start_quarter} to {end_quarter}"
     else:
         data = data_years
-        base_bank = base_bank_years
-        peer_banks = peer_banks_years
+        base_bank = selected_base_bank
         current_year = datetime.now().year
         years = [year for year in range(current_year - 3, current_year + 1) if year in data['Year'].unique()]
         if not years:
