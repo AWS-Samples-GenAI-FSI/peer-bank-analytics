@@ -3,6 +3,10 @@ import boto3
 import json
 from datetime import datetime
 import time
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils.sec_edgar import SECEdgarAPI
 
 # Top 10 US Banks - Same as Page 1
 TOP_BANKS = [
@@ -18,41 +22,62 @@ TOP_BANKS = [
     "TD BANK"
 ]
 
-class S3ReportManager:
+class SECReportManager:
     def __init__(self):
-        self.s3_client = boto3.client('s3')
-        self.bucket_name = "banking-reports-analysis"
+        self.sec_api = SECEdgarAPI()
         
-    def simulate_s3_reports(self, bank_name):
-        """Simulate S3 reports availability"""
-        return {
-            "10-K": [f"{bank_name}-10K-2024.pdf", f"{bank_name}-10K-2023.pdf"],
-            "10-Q": [f"{bank_name}-10Q-Q1-2024.pdf", f"{bank_name}-10Q-Q2-2024.pdf", 
-                     f"{bank_name}-10Q-Q3-2023.pdf", f"{bank_name}-10Q-Q4-2023.pdf"]
-        }
+    def get_real_sec_reports(self, bank_name):
+        """Get real SEC reports for a bank"""
+        try:
+            # Get 10-K and 10-Q filings
+            filings_10k = self.sec_api.get_bank_filings(bank_name, "10-K", 3)
+            filings_10q = self.sec_api.get_bank_filings(bank_name, "10-Q", 4)
+            
+            return {
+                "10-K": filings_10k,
+                "10-Q": filings_10q,
+                "financial_facts": self.sec_api.get_financial_facts(bank_name)
+            }
+        except Exception as e:
+            st.error(f"Error fetching SEC data: {e}")
+            return {"10-K": [], "10-Q": [], "financial_facts": {}}
 
 class ClaudeAnalyzer:
     def __init__(self):
         self.bedrock = boto3.client('bedrock-runtime')
+        self.sec_api = SECEdgarAPI()
         
-    def analyze_bank_reports(self, bank_name, reports):
+    def analyze_bank_reports(self, bank_name, reports, financial_facts):
         """Analyze bank reports using Claude"""
+        # Extract real financial metrics
+        sec_api = SECEdgarAPI()
+        metrics = sec_api.extract_key_metrics(financial_facts) if financial_facts else {}
+        
+        metrics_text = "\n".join([f"{k}: {v:,}" if isinstance(v, (int, float)) else f"{k}: {v}" for k, v in metrics.items()]) if metrics else "No financial data available"
+        
         prompt = f"""
-As a senior financial analyst, provide a comprehensive analysis of {bank_name} based on their recent financial reports.
+As a senior financial analyst, provide a comprehensive analysis of {bank_name} based on their recent SEC filings and financial data.
+
+Real Financial Data:
+{metrics_text}
+
+Recent SEC Filings:
+10-K Reports: {len(reports.get('10-K', []))}
+10-Q Reports: {len(reports.get('10-Q', []))}
 
 ## Financial Performance Analysis
-Analyze revenue growth, profitability trends, and key financial ratios for {bank_name}.
+Analyze the actual financial metrics provided above for {bank_name}.
 
 ## Risk Assessment
-Evaluate credit risk, market risk, and operational risk factors.
+Evaluate credit risk, market risk, and operational risk factors based on SEC filings.
 
 ## Strategic Outlook
-Assess strategic initiatives, digital transformation efforts, and competitive positioning.
+Assess strategic initiatives and competitive positioning.
 
 ## Investment Recommendation
-Provide an overall assessment and key takeaways for investors.
+Provide an overall assessment based on the real financial data.
 
-Provide detailed, professional analysis in each section.
+Provide detailed, professional analysis using the actual data provided.
 """
         
         try:
@@ -175,7 +200,7 @@ def run_app():
     """, unsafe_allow_html=True)
 
     st.markdown("<h1 style='text-align: center; color: #4B91F1; font-family: Arial, sans-serif; font-weight: bold;'>🏦 Banking Financial Analysis</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-family: Arial, sans-serif;'><strong>AI-Powered Analysis of Top 10 US Banks using Claude</strong></p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-family: Arial, sans-serif;'><strong>Real SEC Filing Analysis using Claude AI</strong></p>", unsafe_allow_html=True)
     
     # Initialize background loading
     if 'reports_loaded' not in st.session_state:
@@ -185,12 +210,12 @@ def run_app():
             st.success("✅ Reports loaded to S3 successfully!")
     
     # Initialize components
-    s3_manager = S3ReportManager()
+    sec_manager = SECReportManager()
     claude_analyzer = ClaudeAnalyzer()
 
     # Display available banks
     st.markdown("### 🏦 Select a Bank for Financial Analysis")
-    st.markdown("*Reports for 2023-2024 (10-K & 10-Q) are pre-loaded in S3*")
+    st.markdown("*Real-time SEC EDGAR data for 10-K & 10-Q filings*")
     
     # Initialize selected bank in session state
     if 'selected_bank' not in st.session_state:
@@ -217,8 +242,9 @@ def run_app():
     # Show selected bank info
     st.markdown(f"## 🏦 {selected_bank} - Financial Analysis")
     
-    # Get reports from S3
-    reports = s3_manager.simulate_s3_reports(selected_bank)
+    # Get real SEC reports
+    with st.spinner("📄 Fetching real SEC filings..."):
+        reports = sec_manager.get_real_sec_reports(selected_bank)
     
     # Display report availability
     col1, col2, col3 = st.columns(3)
@@ -231,8 +257,8 @@ def run_app():
 
     # Analysis button
     if st.button(f"🤖 Analyze {selected_bank} with Claude", type="primary", use_container_width=True):
-        with st.spinner(f"Claude is analyzing {selected_bank}'s financial reports..."):
-            analysis = claude_analyzer.analyze_bank_reports(selected_bank, reports)
+        with st.spinner(f"Claude is analyzing {selected_bank}'s real SEC filings..."):
+            analysis = claude_analyzer.analyze_bank_reports(selected_bank, reports, reports.get('financial_facts', {}))
             
             st.markdown(f"### 📊 Claude Analysis Results for {selected_bank}")
             
@@ -251,14 +277,28 @@ def run_app():
                         st.write(section)
                         st.markdown('</div>', unsafe_allow_html=True)
             
-            # Show report sources
-            with st.expander("📄 Report Sources", expanded=False):
+            # Show real report sources
+            with st.expander("📄 Real SEC Report Sources", expanded=False):
                 st.write("**10-K Annual Reports:**")
                 for report in reports["10-K"]:
-                    st.write(f"• {report}")
+                    st.write(f"• {report['form']} - Filed: {report['filing_date']}")
+                    st.write(f"  [View on SEC.gov]({report['url']})")
                 st.write("**10-Q Quarterly Reports:**")
                 for report in reports["10-Q"]:
-                    st.write(f"• {report}")
+                    st.write(f"• {report['form']} - Filed: {report['filing_date']}")
+                    st.write(f"  [View on SEC.gov]({report['url']})")
+                
+                # Show financial metrics
+                if reports.get('financial_facts'):
+                    sec_api = SECEdgarAPI()
+                    metrics = sec_api.extract_key_metrics(reports['financial_facts'])
+                    if metrics:
+                        st.write("**Key Financial Metrics:**")
+                        for key, value in metrics.items():
+                            if isinstance(value, (int, float)):
+                                st.write(f"• {key}: ${value:,}")
+                            else:
+                                st.write(f"• {key}: {value}")
     
     # Footer note
     st.markdown("---")
