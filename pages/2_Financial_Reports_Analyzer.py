@@ -369,23 +369,23 @@ def run_app():
                 uploaded_content = "\n".join([f"File: {name}\nContent: {data['content']}" 
                                             for name, data in reports.get('uploaded_data', {}).items()])
                 analysis = claude_analyzer.analyze_uploaded_reports(selected_bank, uploaded_content)
-            
-            st.markdown(f"### 📊 Claude Analysis Results for {selected_bank}")
-            
-            # Split analysis into sections
-            sections = analysis.split('\n\n')
-            
-            for i, section in enumerate(sections):
-                if section.strip():
-                    if i == 0:
-                        st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
-                        st.markdown(f"**Executive Summary**")
-                        st.write(section)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
-                        st.write(section)
-                        st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown(f"### 📊 Claude Analysis Results for {selected_bank}")
+        
+        # Split analysis into sections
+        sections = analysis.split('\n\n')
+        
+        for i, section in enumerate(sections):
+            if section.strip():
+                if i == 0:
+                    st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+                    st.markdown(f"**Executive Summary**")
+                    st.write(section)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="analysis-section">', unsafe_allow_html=True)
+                    st.write(section)
+                    st.markdown('</div>', unsafe_allow_html=True)
             
             # Show report sources based on source type
             if report_source == "SEC EDGAR API":
