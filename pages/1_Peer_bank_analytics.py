@@ -299,30 +299,12 @@ def process_fdic_data(df):
     return data_quarters, data_years
 
 def run_app():
-    # Load fresh FDIC data
-    with st.spinner("🏦 Loading fresh banking data from FDIC API..."):
-        fdic_data, metric_data = get_fdic_banking_data()
-        
-        # Try to get real FDIC data
-        fdic_data, metric_data = get_fdic_banking_data()
-        
-        if len(fdic_data) > 0 and 'Metric' in fdic_data.columns:
-            data_quarters = fdic_data.copy()
-            data_years = fdic_data.copy()
-            
-            # Ensure at least one base bank exists
-            if len(data_quarters[data_quarters['Bank Type'] == 'Base Bank']) == 0:
-                # Make the first bank the base bank
-                first_bank = data_quarters['Bank'].iloc[0]
-                data_quarters.loc[data_quarters['Bank'] == first_bank, 'Bank Type'] = 'Base Bank'
-                data_years.loc[data_years['Bank'] == first_bank, 'Bank Type'] = 'Base Bank'
-            
-            st.success(f"✅ Loaded real data for {fdic_data['Bank'].nunique()} banks from FDIC API")
-        else:
-            # Fallback to sample data
-            data_quarters, metric_data = create_sample_data()
-            data_years = data_quarters.copy()
-            st.warning("⚠️ Using sample data - FDIC API unavailable")
+    # Initialize session state for data
+    if 'data_loaded' not in st.session_state:
+        st.session_state.data_loaded = False
+        st.session_state.data_quarters = None
+        st.session_state.data_years = None
+        st.session_state.metric_data = None
 
     # Function to generate dummy summary
     def generate_summary(df, metric, peers, period):
@@ -466,6 +448,80 @@ def run_app():
     st.markdown("<h1 style='text-align: center; color: #4B91F1; font-family: Arial, sans-serif; font-weight: bold;'>Peer Bank Analytics</h1>", unsafe_allow_html=True)
 
     # Sidebar for selection controls
+    # Data source selection
+    data_source = st.sidebar.radio("#### :blue[Data Source]", ["Live FDIC API", "Upload CSV"], 
+                                   key="data_source_selection",
+                                   help="Choose between live FDIC data or upload your own CSV")
+    
+    st.sidebar.image(hline)
+    
+    if data_source == "Upload CSV":
+        uploaded_file = st.sidebar.file_uploader(
+            "Upload Banking Metrics CSV", 
+            type=['csv'],
+            help="CSV should have columns: Bank, Quarter, Metric, Value, Bank Type"
+        )
+        
+        # Provide sample CSV template
+        sample_csv = """Bank,Quarter,Metric,Value,Bank Type
+Custom Bank A,2024-Q1,Return on Assets (ROA),1.25,Base Bank
+Custom Bank A,2024-Q1,Return on Equity (ROE),15.2,Base Bank
+Custom Bank B,2024-Q1,Return on Assets (ROA),1.18,Peer Bank
+Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
+        
+        st.sidebar.download_button(
+            label="📄 Download CSV Template",
+            data=sample_csv,
+            file_name="banking_metrics_template.csv",
+            mime="text/csv",
+            help="Download a sample CSV format"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                uploaded_data = pd.read_csv(uploaded_file)
+                # Validate required columns
+                required_cols = ['Bank', 'Quarter', 'Metric', 'Value']
+                if all(col in uploaded_data.columns for col in required_cols):
+                    # Add Bank Type if missing
+                    if 'Bank Type' not in uploaded_data.columns:
+                        uploaded_data['Bank Type'] = 'Peer Bank'
+                    
+                    data_quarters = uploaded_data.copy()
+                    data_years = uploaded_data.copy()
+                    data_years['Year'] = data_years['Quarter'].str[:4]
+                    
+                    # Create metrics metadata from uploaded data
+                    unique_metrics = uploaded_data['Metric'].unique()
+                    metric_data = pd.DataFrame([
+                        {"Metric Name": metric, "Metric Description": f"Custom metric: {metric}"}
+                        for metric in unique_metrics
+                    ])
+                    
+                    st.sidebar.success(f"✅ Loaded {len(uploaded_data)} records from CSV")
+                else:
+                    st.sidebar.error(f"❌ CSV must have columns: {', '.join(required_cols)}")
+                    data_quarters, metric_data = get_fdic_banking_data()
+                    data_years = data_quarters.copy()
+            except Exception as e:
+                st.sidebar.error(f"❌ Error reading CSV: {e}")
+                data_quarters, metric_data = get_fdic_banking_data()
+                data_years = data_quarters.copy()
+        else:
+            st.sidebar.info("📁 Upload a CSV file to use custom data")
+            data_quarters, metric_data = get_fdic_banking_data()
+            data_years = data_quarters.copy()
+    else:
+        # Use live FDIC data
+        with st.spinner("🏦 Loading fresh banking data from FDIC API..."):
+            data_quarters, metric_data = get_fdic_banking_data()
+            data_years = data_quarters.copy()
+    
+    # Check if we have data to work with
+    if 'data_quarters' not in locals() or data_quarters is None or len(data_quarters) == 0:
+        st.info("👆 Please select a data source above to begin analysis")
+        return
+    
     # Base bank selection
     all_banks = data_quarters['Bank'].unique()
     default_base = next((bank for bank in all_banks if 'JPMORGAN' in bank.upper() or 'CHASE' in bank.upper()), all_banks[0])
