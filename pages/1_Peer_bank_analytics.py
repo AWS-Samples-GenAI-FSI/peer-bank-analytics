@@ -445,20 +445,21 @@ def run_app():
     """, unsafe_allow_html=True)
 
     # Add big page title
-    st.markdown("<h1 style='text-align: center; color: #4B91F1; font-family: Arial, sans-serif; font-weight: bold;'>Peer Bank Analytics</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #2C5F41; font-family: Arial, sans-serif; font-weight: bold;'>Peer Bank Analytics</h1>", unsafe_allow_html=True)
 
     # Sidebar for selection controls
     # Data source selection
-    data_source = st.sidebar.radio("#### :blue[Data Source]", ["Live FDIC API", "Upload CSV"], 
+    data_source = st.sidebar.radio("#### :green[Data Source]", ["Live FDIC API", "Upload CSV"], 
                                    key="data_source_selection",
                                    help="Choose between live FDIC data or upload your own CSV")
     
     st.sidebar.image(hline)
     
     if data_source == "Upload CSV":
-        uploaded_file = st.sidebar.file_uploader(
+        uploaded_files = st.sidebar.file_uploader(
             "Upload Banking Metrics CSV", 
             type=['csv'],
+            accept_multiple_files=True,
             help="CSV should have columns: Bank, Quarter, Metric, Value, Bank Type"
         )
         
@@ -477,9 +478,14 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
             help="Download a sample CSV format"
         )
         
-        if uploaded_file is not None:
+        if uploaded_files:
             try:
-                uploaded_data = pd.read_csv(uploaded_file)
+                # Combine all uploaded CSV files
+                all_data = []
+                for uploaded_file in uploaded_files:
+                    file_data = pd.read_csv(uploaded_file)
+                    all_data.append(file_data)
+                uploaded_data = pd.concat(all_data, ignore_index=True)
                 # Validate required columns
                 required_cols = ['Bank', 'Quarter', 'Metric', 'Value']
                 if all(col in uploaded_data.columns for col in required_cols):
@@ -498,7 +504,7 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
                         for metric in unique_metrics
                     ])
                     
-                    st.sidebar.success(f"✅ Loaded {len(uploaded_data)} records from CSV")
+                    st.sidebar.success(f"✅ Loaded {len(uploaded_data)} records from {len(uploaded_files)} CSV file(s)")
                 else:
                     st.sidebar.error(f"❌ CSV must have columns: {', '.join(required_cols)}")
                     data_quarters, metric_data = get_fdic_banking_data()
@@ -508,7 +514,7 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
                 data_quarters, metric_data = get_fdic_banking_data()
                 data_years = data_quarters.copy()
         else:
-            st.sidebar.info("📁 Upload a CSV file to use custom data")
+            st.sidebar.info("📁 Upload CSV files to use custom data")
             data_quarters, metric_data = get_fdic_banking_data()
             data_years = data_quarters.copy()
     else:
@@ -525,7 +531,7 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     # Base bank selection
     all_banks = data_quarters['Bank'].unique()
     default_base = next((bank for bank in all_banks if 'JPMORGAN' in bank.upper() or 'CHASE' in bank.upper()), all_banks[0])
-    selected_base_bank = st.sidebar.selectbox("#### :blue[Select base bank]", all_banks, 
+    selected_base_bank = st.sidebar.selectbox("#### :green[Select base bank]", all_banks, 
                                              index=list(all_banks).index(default_base),
                                              key="base_bank_selection",
                                              help="Select the base bank for comparison.")
@@ -542,7 +548,7 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     
     # Metric selection
     metrics = metric_data["Metric Name"].tolist()
-    selected_metric = st.sidebar.selectbox("#### :blue[Select a metric]", metrics, key="metric_selection",
+    selected_metric = st.sidebar.selectbox("#### :green[Select a metric]", metrics, key="metric_selection",
                                            help="Select the metric to analyze.")
     selected_metric_description = metric_data.loc[metric_data["Metric Name"] == selected_metric, "Metric Description"].values[0]
    # st.sidebar.image(hline) ###### Add horizontal line
@@ -595,20 +601,20 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     st.sidebar.image(hline) ###### Add horizontal line
     # Peer bank selection (exclude selected base bank)
     available_peer_banks = [bank for bank in all_banks if bank != selected_base_bank]
-    selected_peer_banks = st.sidebar.multiselect("#### :blue[Select peer banks for comparison]", available_peer_banks,
+    selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison]", available_peer_banks,
                                                  default=available_peer_banks[:2], key="peer_bank_selection",
                                                  help="Select the peer banks to include in the comparison.")
     #st.sidebar.markdown("---")  # Add a horizontal line for separation
     st.sidebar.image(hline) ###### Add horizontal line
 
     # Time period selection
-    period_type = st.sidebar.radio("#### :blue[Select time period type]", ["Quarters", "Years"], key="period_type_selection",
+    period_type = st.sidebar.radio("#### :green[Select time period type]", ["Quarters", "Years"], key="period_type_selection",
                                    help="Choose whether to analyze data by quarters or years.")
     if period_type == "Quarters":
         data = data_quarters
         base_bank = selected_base_bank
         quarters = data['Quarter'].unique()
-        start_quarter, end_quarter = st.sidebar.select_slider("#### :blue[Select period]", options=quarters,
+        start_quarter, end_quarter = st.sidebar.select_slider("#### :green[Select period]", options=quarters,
                                                                value=(quarters[0], quarters[-1]),
                                                                key="quarter_period_selection",
                                                                help="Select the range of quarters to analyze.")

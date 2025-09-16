@@ -71,9 +71,9 @@ st.markdown(
 
 
 
-st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(90deg, #4B91F1 0%, #1E88E5 100%); margin-left: calc(-50vw + 50%); margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(90deg, #2C5F41 0%, #1B4332 100%); margin-left: calc(-50vw + 50%); margin-bottom: 20px;"></div>', unsafe_allow_html=True)
 heads()
-st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(90deg, #4B91F1 0%, #1E88E5 100%); margin-left: calc(-50vw + 50%); margin-top: 20px; margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(90deg, #2C5F41 0%, #1B4332 100%); margin-left: calc(-50vw + 50%); margin-top: 20px; margin-bottom: 20px;"></div>', unsafe_allow_html=True)
 col1, col2, col3=st.columns([10,1,10])
 with col1:
     first_column()
@@ -81,7 +81,7 @@ with col2:
     st.write("")
 with col3:
     third_column()
-st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(90deg, #4B91F1 0%, #1E88E5 100%); margin-left: calc(-50vw + 50%); margin-top: 20px; margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(90deg, #2C5F41 0%, #1B4332 100%); margin-left: calc(-50vw + 50%); margin-top: 20px; margin-bottom: 20px;"></div>', unsafe_allow_html=True)
 
 # Footer note
 st.markdown("<p style='text-align: center; color: #666; font-size: 0.9rem; font-family: Arial, sans-serif; margin-top: 40px;'>Powered by Amazon Bedrock - BankIQ+</p>", unsafe_allow_html=True)

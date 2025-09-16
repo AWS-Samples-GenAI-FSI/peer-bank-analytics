@@ -185,18 +185,7 @@ Key strategic initiatives include digital banking transformation, expansion of w
 *Note: This is a simulated analysis. Actual Claude analysis temporarily unavailable.*
 """
 
-@st.cache_data(ttl=1800)
-def load_reports_to_s3_background():
-    """Simulate background loading of reports to S3"""
-    progress = {}
-    for bank in TOP_BANKS:
-        # Simulate loading process
-        progress[bank] = {
-            "status": "loaded",
-            "reports_count": 6,  # 2 x 10-K + 4 x 10-Q
-            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M")
-        }
-    return progress
+# Removed simulated S3 loading function - now using real SEC API
 
 def run_app():
     # Add modern font styling
@@ -253,15 +242,12 @@ def run_app():
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h1 style='text-align: center; color: #4B91F1; font-family: Arial, sans-serif; font-weight: bold;'>🏦 Banking Financial Analysis</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #2C5F41; font-family: Arial, sans-serif; font-weight: bold;'>🏦 Banking Financial Analysis</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-family: Arial, sans-serif;'><strong>Real SEC Filing Analysis using Claude AI</strong></p>", unsafe_allow_html=True)
     
-    # Initialize background loading
+    # Initialize session state
     if 'reports_loaded' not in st.session_state:
-        with st.spinner("🔄 Loading bank reports to S3 in background..."):
-            st.session_state.s3_progress = load_reports_to_s3_background()
-            st.session_state.reports_loaded = True
-            st.success("✅ Reports loaded to S3 successfully!")
+        st.session_state.reports_loaded = True
     
     # Initialize components
     sec_manager = SECReportManager()
@@ -269,7 +255,7 @@ def run_app():
 
     # Display available banks
     # Report source selection
-    report_source = st.sidebar.radio("#### :blue[Report Source]", ["SEC EDGAR API", "Upload Reports"], 
+    report_source = st.sidebar.radio("#### :green[Report Source]", ["SEC EDGAR API", "Upload Reports"], 
                                     key="report_source_selection",
                                     help="Choose between live SEC data or upload your own reports")
     

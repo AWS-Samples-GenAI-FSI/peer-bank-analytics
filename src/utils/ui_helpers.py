@@ -21,13 +21,13 @@ config_object.read("./bank_config.ini") #
 #### display function for the first column of the app homepage and info page
 #### this function is called from the main.py file
 def first_column():
-            st.markdown("<p style='text-align:center; color:blue;'><u><b>About Me</b></u></p>",unsafe_allow_html=True)
-            st.markdown("<p style='text-align:left;color:#5A5A5A;'>✔️ I am an Analyst, based on RAG (Retrieval Augmented Generation Architecture), helping in bank health-metrics by analyzing publicly available financial documents.</p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center; color:#2C5F41;'><u><b>About Me</b></u></p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:left;color:#5A5A5A;'>✔️ I am an AI-powered banking analyst that provides comprehensive peer analytics using real-time FDIC data and SEC filings.</p>",unsafe_allow_html=True)
             st.write(" ")
-            st.markdown("<p style='text-align:left;color:#5A5A5A;'>✔️ I currently analyze CRE (Commercial Real Estate concentration) and delinquency metrics across selected banks.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:left;color:#5A5A5A;'>✔️ I analyze 6 key banking metrics: ROA, ROE, NIM, Tier 1 Capital, LDR, and CRE Concentration across top 10 US banks.</p>", unsafe_allow_html=True)
             
             st.write(" ")
-            st.markdown("<p style='text-align:left;color:#5A5A5A;'>✔️ I am built on Streamlit using Amazon Bedrock powered large language models and a diverse set of document loaders developed by LangChain. Also FAISS is used as in-memory Vector store.</p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:left;color:#5A5A5A;'>✔️ I support both live API data (FDIC/SEC) and custom file uploads (CSV/PDF) with Amazon Bedrock Claude AI analysis.</p>", unsafe_allow_html=True)
             st.write(" ")        
             st.write(" ")
 
@@ -44,13 +44,13 @@ def second_column():
 #### display function for the third column of the app homepage and info page
 #### this function is called from the main.py file
 def third_column():
-            st.markdown("<p style='text-align:center !important;color:blue;'><u><b>Roadmap & Suggestions</b></u></p>",unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>📝 Supporting top 20 financial health metrics comparison and charting capabilities.</p>",unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>🔧 Options to choose any banks for comparison.</p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center !important;color:#2C5F41;'><u><b>Roadmap & Suggestions</b></u></p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>📈 Expand to regional and community banks beyond top 10.</p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>🔍 Add stress testing and scenario analysis capabilities.</p>",unsafe_allow_html=True)
             st.write(" ")
-            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>📦 Enhance the Q&A Capability with Financial documents.</p>",unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>🌐 Automate document ingestion using Public API calls.</p>",unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>💡 Community forums and feedback channels.</p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>📊 Enhanced visualizations with predictive analytics.</p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>🤖 Advanced AI insights with regulatory compliance alerts.</p>",unsafe_allow_html=True)
+            st.markdown("<p style='text-align:center !important;color:#5A5A5A;'>📱 Mobile-responsive dashboard and API endpoints.</p>",unsafe_allow_html=True)
             
             st.write(" ")
             st.write(" ")
@@ -58,7 +58,7 @@ def third_column():
 #### display function for the header display
 def heads():
     # BankIQ, the GenAI-powered banking app, streamlines strategic decision-making by delivering comprehensive financial and investment health metrics across banks.
-    st.markdown("<h1 style='text-align:center; color:#4B91F1; font-family: Arial, sans-serif; font-weight: bold;'>👋🏽 Hey There! I am BankIQ+!⚡</h1>",unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; color:#2C5F41; font-family: Arial, sans-serif; font-weight: bold;'>👋🏽 Hey There! I am BankIQ+!⚡</h1>",unsafe_allow_html=True)
     st.markdown("""
     <p style='text-align:center; font-family: Arial, sans-serif;'>GenAI-powered banking app, streamlines strategic decision-making by delivering comprehensive financial and investment health metrics across banks.</p>
     """,unsafe_allow_html=True)
