@@ -455,6 +455,8 @@ def run_app():
     
     st.sidebar.image(hline)
     
+
+    
     if data_source == "Upload CSV":
         uploaded_files = st.sidebar.file_uploader(
             "Upload Banking Metrics CSV", 
@@ -546,12 +548,20 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     
     st.sidebar.image(hline)
     
+    # Peer bank selection (exclude selected base bank)
+    available_peer_banks = [bank for bank in all_banks if bank != selected_base_bank]
+    selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison]", available_peer_banks,
+                                                 default=available_peer_banks[:2], key="peer_bank_selection",
+                                                 help="Select the peer banks to include in the comparison.")
+    
+    st.sidebar.image(hline)
+    
     # Metric selection
     metrics = metric_data["Metric Name"].tolist()
     selected_metric = st.sidebar.selectbox("#### :green[Select a metric]", metrics, key="metric_selection",
                                            help="Select the metric to analyze.")
     selected_metric_description = metric_data.loc[metric_data["Metric Name"] == selected_metric, "Metric Description"].values[0]
-   # st.sidebar.image(hline) ###### Add horizontal line
+    
     # Display tiles - using selected base bank
     base_bank_name = selected_base_bank
 
@@ -597,15 +607,7 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
             </div>
         """, unsafe_allow_html=True)
 
-    #st.sidebar.markdown("---")  # Add a horizontal line for separation
-    st.sidebar.image(hline) ###### Add horizontal line
-    # Peer bank selection (exclude selected base bank)
-    available_peer_banks = [bank for bank in all_banks if bank != selected_base_bank]
-    selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison]", available_peer_banks,
-                                                 default=available_peer_banks[:2], key="peer_bank_selection",
-                                                 help="Select the peer banks to include in the comparison.")
-    #st.sidebar.markdown("---")  # Add a horizontal line for separation
-    st.sidebar.image(hline) ###### Add horizontal line
+    st.sidebar.image(hline)
 
     # Time period selection
     period_type = st.sidebar.radio("#### :green[Select time period type]", ["Quarters", "Years"], key="period_type_selection",
