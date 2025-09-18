@@ -4,6 +4,33 @@ from PIL import Image ###### Import Image library for loading images
 import os ###### Import os library for environment variables
 from src.utils.ui_helpers import * ###### Import custom utility functions
 
+# Authentication check
+def check_auth():
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    
+    if not st.session_state.authenticated:
+        st.title("🏦 Banking Analytics - Authentication Required")
+        st.warning("This application contains sensitive financial data. Please authenticate to continue.")
+        
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        
+        if st.button("Login"):
+            if username == "awsuser" and password == "Password123$":
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
+        
+        st.info("Demo credentials: username=awsuser, password=Password123$")
+        return False
+    return True
+
+# Check authentication before showing main app
+if not check_auth():
+    st.stop()
+
     # Custom column layout with increased width for col1 and col3, and moving them down by 20pt
 config_object = ConfigParser()
 config_object.read("src/utils/bank_config.ini")
@@ -82,6 +109,12 @@ with col2:
 with col3:
     third_column()
 st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(90deg, #2C5F41 0%, #1B4332 100%); margin-left: calc(-50vw + 50%); margin-top: 20px; margin-bottom: 20px;"></div>', unsafe_allow_html=True)
+
+# Logout button in sidebar
+with st.sidebar:
+    if st.button("🚪 Logout"):
+        st.session_state.authenticated = False
+        st.rerun()
 
 # Footer note
 st.markdown("<p style='text-align: center; color: #666; font-size: 0.9rem; font-family: Arial, sans-serif; margin-top: 40px;'>Powered by Amazon Bedrock - BankIQ+</p>", unsafe_allow_html=True)
