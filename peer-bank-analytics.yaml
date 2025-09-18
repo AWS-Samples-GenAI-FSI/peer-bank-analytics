@@ -6,6 +6,10 @@ Parameters:
     Type: String
     Default: banking-analytics
     Description: Name for your banking analytics deployment
+  
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
 Resources:
   SecurityGroup:
@@ -47,7 +51,7 @@ Resources:
   Instance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0c02fb55956c7d316
+      ImageId: !Ref LatestAmiId
       InstanceType: t2.micro
       SecurityGroupIds: [!Ref SecurityGroup]
       IamInstanceProfile: !Ref InstanceProfile
