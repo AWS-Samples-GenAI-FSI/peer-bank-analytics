@@ -21,6 +21,10 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
 
   EC2Role:
     Type: AWS::IAM::Role
@@ -58,29 +62,58 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
+          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+          
+          # Update system
           yum update -y
-          yum install -y docker git
-          service docker start
+          yum install -y docker git python3-pip
+          
+          # Start Docker
+          systemctl start docker
+          systemctl enable docker
+          usermod -a -G docker ec2-user
+          
+          # Clone repository
           git clone https://github.com/AWS-Samples-GenAI-FSI/peer-bank-analytics.git /home/ec2-user/app
           cd /home/ec2-user/app
+          chown -R ec2-user:ec2-user /home/ec2-user/app
+          
+          # Create optimized Dockerfile
           cat > Dockerfile << 'EOF'
-          FROM python:3.9
+          FROM python:3.9-slim
           WORKDIR /app
-          COPY . /app
-          RUN pip install -r requirements.txt
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+          COPY . .
           EXPOSE 8501
           ENV AWS_DEFAULT_REGION=${AWS::Region}
           ENV BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
-          CMD ["streamlit", "run", "1_🏠_Home.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableCORS=false"]
+          HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+            CMD curl -f http://localhost:8501/_stcore/health || exit 1
+          CMD ["streamlit", "run", "1_🏠_Home.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.headless=true"]
           EOF
-          docker build -t banking-app .
-          docker run -d -p 80:8501 banking-app
-          sleep 60
-          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
+          
+          # Build and run application
+          docker build -t banking-app . || { echo "Docker build failed"; exit 1; }
+          docker run -d -p 80:8501 --name banking-container --restart unless-stopped banking-app || { echo "Docker run failed"; exit 1; }
+          
+          # Wait for application to be ready
+          for i in {1..30}; do
+            if curl -f http://localhost:80/_stcore/health 2>/dev/null; then
+              echo "Application is ready"
+              /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
+              exit 0
+            fi
+            echo "Waiting for application... ($i/30)"
+            sleep 10
+          done
+          
+          echo "Application failed to start"
+          /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
     CreationPolicy:
       ResourceSignal:
         Count: 1
-        Timeout: PT15M
+        Timeout: PT20M
 
 Outputs:
   ApplicationURL:
