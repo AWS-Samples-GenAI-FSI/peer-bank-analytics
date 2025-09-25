@@ -48,6 +48,7 @@ Resources:
                   - bedrock:ConverseStream
                   - bedrock:Converse
                   - bedrock:ListFoundationModels
+                  - bedrock:InvokeModelWithResponseStream
                 Resource: '*'
         - PolicyName: CloudWatchLogs
           PolicyDocument:
