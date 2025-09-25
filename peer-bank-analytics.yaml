@@ -120,8 +120,9 @@ Resources:
           FROM python:3.9-slim
           WORKDIR /app
           COPY requirements.txt .
-          RUN pip install --no-cache-dir "urllib3<2.0" "requests<2.29" "boto3==1.40.21"
+          RUN pip install --no-cache-dir "urllib3<2.0" "requests<2.29"
           RUN pip install --no-cache-dir -r requirements.txt
+          RUN pip install --no-cache-dir --upgrade "boto3==1.40.21" "botocore==1.40.21"
           COPY . .
           RUN mkdir -p .streamlit
           EXPOSE 8501
