@@ -28,17 +28,24 @@ Resources:
           
           def handler(event, context):
               try:
+                  print(f'Event: {event}')
                   if event['RequestType'] == 'Delete':
                       cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
                       return
                   
                   # Get public IP
+                  print('Getting public IP...')
                   response = urllib.request.urlopen('https://checkip.amazonaws.com')
                   ip = response.read().decode('utf-8').strip()
+                  print(f'Got IP: {ip}')
                   
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {'IP': ip})
+                  response_data = {'IP': ip}
+                  print(f'Sending response: {response_data}')
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
               except Exception as e:
                   print(f'Error: {e}')
+                  import traceback
+                  traceback.print_exc()
                   cfnresponse.send(event, context, cfnresponse.FAILED, {})
   
   LambdaRole:
@@ -109,16 +116,37 @@ Resources:
           #!/bin/bash
           exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
           
-          # Update system (minimal)
-          yum install -y git python3-pip curl -q
+          # Log everything for debugging
+          exec > >(tee -a /var/log/setup.log) 2>&1
+          echo "Starting setup at $(date)"
+          
+          # Update system and install dependencies
+          yum update -y
+          yum install -y git python3-pip curl
           
           # Clone repository
-          git clone https://github.com/AWS-Samples-GenAI-FSI/peer-bank-analytics.git /home/ec2-user/app
+          echo "Cloning repository..."
+          git clone https://github.com/AWS-Samples-GenAI-FSI/peer-bank-analytics.git /home/ec2-user/app || {
+            echo "Git clone failed"
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
+            exit 1
+          }
+          
           cd /home/ec2-user/app
           chown -R ec2-user:ec2-user /home/ec2-user/app
           
-          # Create authentication config
-          cat > .streamlit/config.toml << 'CONFIGEOF'
+          # Install dependencies
+          echo "Installing Python dependencies..."
+          pip3 install -r requirements.txt || {
+            echo "Pip install failed"
+            cat requirements.txt
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
+            exit 1
+          }
+          
+          # Create streamlit config
+          mkdir -p .streamlit
+          cat > .streamlit/config.toml << 'EOF'
           [server]
           headless = true
           port = 8501
@@ -127,67 +155,54 @@ Resources:
           
           [browser]
           gatherUsageStats = false
-          CONFIGEOF
-          
-          # Create simple auth wrapper
-          cat > auth_wrapper.py << 'AUTHEOF'
-          import streamlit as st
-          import os
-          import hashlib
-          
-          def check_auth():
-              if "authenticated" not in st.session_state:
-                  st.session_state.authenticated = False
-              
-              if not st.session_state.authenticated:
-                  st.title("🏦 Banking Analytics - Authentication Required")
-                  st.warning("This application contains sensitive financial data. Please authenticate to continue.")
-                  
-                  username = st.text_input("Username")
-                  password = st.text_input("Password", type="password")
-                  
-                  if st.button("Login"):
-                      # Simple demo auth - replace with proper authentication
-                      if username == "awsuser" and password == "Password123$":
-                          st.session_state.authenticated = True
-                          st.rerun()
-                      else:
-                          st.error("Invalid credentials")
-                  
-                  st.info("Demo credentials: username=awsuser, password=Password123$")
-                  return False
-              return True
-          AUTHEOF
-          
-          # Install Python dependencies directly (faster than Docker build)
-          pip3 install -r requirements.txt
+          EOF
           
           # Set environment variables
           export AWS_DEFAULT_REGION=${AWS::Region}
           export BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
           
-          # Start application on port 8501 (no sudo needed)
-          nohup python3 -m streamlit run 1_🏠_Home.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true > /var/log/streamlit.log 2>&1 &
+          # Test streamlit installation
+          echo "Testing streamlit..."
+          python3 -c "import streamlit; print('Streamlit OK')" || {
+            echo "Streamlit import failed"
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
+            exit 1
+          }
           
-          # Setup port forwarding from 80 to 8501
+          # Start application
+          echo "Starting application..."
+          nohup python3 -m streamlit run "1_🏠_Home.py" --server.port=8501 --server.address=0.0.0.0 --server.headless=true > /var/log/streamlit.log 2>&1 &
+          
+          # Setup port forwarding
           iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8501
           
-          # Wait for application to be ready with better error handling
-          for i in {1..20}; do
-            if curl -f http://localhost:8501 2>/dev/null | grep -q "Banking\|Streamlit"; then
-              echo "Application is ready on port 8501"
+          # Wait for application with comprehensive debugging
+          echo "Waiting for application to start..."
+          for i in {1..24}; do
+            if curl -f http://localhost:8501 2>/dev/null | grep -q "Banking\|Streamlit\|html"; then
+              echo "✅ Application is ready on port 8501"
               /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
               exit 0
             fi
-            echo "Waiting for application... ($i/20)"
+            echo "⏳ Waiting for application... ($i/24)"
             sleep 5
           done
           
-          # If we get here, something failed - log details
-          echo "Application failed to start. Checking logs:"
-          tail -20 /var/log/streamlit.log
-          echo "Process status:"
-          ps aux | grep streamlit
+          # Comprehensive failure debugging
+          echo "❌ Application failed to start. Debug info:"
+          echo "=== Setup Log ==="
+          tail -50 /var/log/setup.log
+          echo "=== Streamlit Log ==="
+          tail -50 /var/log/streamlit.log
+          echo "=== Process Status ==="
+          ps aux | grep -E "streamlit|python"
+          echo "=== Port Status ==="
+          netstat -tlnp | grep -E ":8501|:80"
+          echo "=== Directory Contents ==="
+          ls -la /home/ec2-user/app/
+          echo "=== Python Path ==="
+          python3 -c "import sys; print('\n'.join(sys.path))"
+          
           /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
     CreationPolicy:
       ResourceSignal:
