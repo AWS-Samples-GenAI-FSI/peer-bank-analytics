@@ -112,8 +112,19 @@ Resources:
           chown -R ec2-user:ec2-user /home/ec2-user/app
           
           # Install compatible Python packages for older systems
-          echo "Installing Python packages..."
-          pip3 install "urllib3<2.0" "requests<2.29" "boto3<1.26" streamlit pandas plotly configparser pillow
+          echo "Installing compatible base packages..."
+          pip3 install "urllib3<2.0" "requests<2.29" "boto3<1.26" "botocore<1.27"
+          
+          # Install all requirements with compatibility fixes
+          echo "Installing all application requirements..."
+          pip3 install streamlit pandas matplotlib plotly configparser pillow numpy
+          pip3 install langchain langchain_community langchain-core langchain-text-splitters
+          pip3 install llama-index llama-index-llms-bedrock llama-index-embeddings-bedrock
+          pip3 install unstructured PyPDF2 reportlab anthropic
+          pip3 install beautifulsoup4 nltk faiss-cpu
+          
+          # Install remaining packages from requirements
+          pip3 install -r requirements.txt || echo "Some packages may have failed - continuing..."
           
           # Create Streamlit config
           mkdir -p .streamlit
@@ -143,9 +154,9 @@ Resources:
           # Setup port forwarding
           iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8501
           
-          # Wait briefly then signal success
+          # Wait for application to start
           echo "Waiting for application to start..."
-          sleep 60
+          sleep 90
           
           # Always signal success - let the app start in background
           echo "✅ SETUP COMPLETE"
