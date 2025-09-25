@@ -101,59 +101,40 @@ Resources:
           
           echo "=== Starting banking analytics setup at $(date) ==="
           
-          # Install dependencies (no strict error checking)
-          echo "Installing dependencies..."
-          yum install -y git python3-pip curl
+          # Update system
+          yum update -y
+          yum install -y docker git
+          
+          # Start Docker
+          systemctl start docker
+          systemctl enable docker
+          usermod -a -G docker ec2-user
           
           # Clone repository
-          echo "Cloning repository..."
           git clone https://github.com/AWS-Samples-GenAI-FSI/peer-bank-analytics.git /home/ec2-user/app
           cd /home/ec2-user/app
           chown -R ec2-user:ec2-user /home/ec2-user/app
           
-          # Install compatible Python packages for older systems
-          echo "Installing compatible base packages..."
-          pip3 install "urllib3<2.0" "requests<2.29" "boto3<1.26" "botocore<1.27"
-          
-          # Install all requirements with compatibility fixes
-          echo "Installing all application requirements..."
-          pip3 install --upgrade pip
-          pip3 install streamlit==1.50.0 pandas matplotlib plotly configparser pillow numpy
-          pip3 install langchain==0.2.1 langchain-community==0.2.1 langchain-core==0.2.2 langchain-text-splitters==0.2.0
-          pip3 install llama-index==0.10.40 llama-index-llms-bedrock==0.1.8 llama-index-embeddings-bedrock==0.2.0
-          pip3 install unstructured==0.14.3 PyPDF2==3.0.1 reportlab anthropic==0.23.1
-          pip3 install beautifulsoup4==4.12.3 nltk==3.8.1 faiss-cpu
-          pip3 install aiohttp==3.9.5 jinja2==3.1.4 pydantic==2.7.2
-          
-          echo "All packages installed successfully"
-          
-          # Create Streamlit config
-          mkdir -p .streamlit
-          cat > .streamlit/config.toml << 'EOF'
-          [server]
-          headless = true
-          port = 8501
-          address = "0.0.0.0"
-          enableCORS = false
-          
-          [browser]
-          gatherUsageStats = false
+          # Create optimized Dockerfile
+          cat > Dockerfile << 'EOF'
+          FROM python:3.9-slim
+          WORKDIR /app
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir "urllib3<2.0" "requests<2.29" "boto3<1.26"
+          RUN pip install --no-cache-dir -r requirements.txt
+          COPY . .
+          RUN mkdir -p .streamlit
+          EXPOSE 8501
+          ENV AWS_DEFAULT_REGION=${AWS::Region}
+          ENV BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+          HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+            CMD curl -f http://localhost:8501/_stcore/health || exit 1
+          CMD ["streamlit", "run", "1_🏠_Home.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
           EOF
           
-          # Set environment variables
-          export AWS_DEFAULT_REGION=${AWS::Region}
-          export BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
-          
-          # Test Python imports (no failure)
-          echo "Testing Python imports..."
-          python3 -c "import streamlit; print('Streamlit OK')" || echo "Streamlit not ready yet"
-          
-          # Start application
-          echo "Starting Streamlit application..."
-          nohup python3 -m streamlit run "1_🏠_Home.py" --server.port=8501 --server.address=0.0.0.0 --server.headless=true > /var/log/streamlit.log 2>&1 &
-          
-          # Setup port forwarding
-          iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8501
+          # Build and run application
+          docker build -t banking-app .
+          docker run -d -p 80:8501 --name banking-container --restart unless-stopped banking-app
           
           # Wait for application to start
           echo "Waiting for application to start..."
