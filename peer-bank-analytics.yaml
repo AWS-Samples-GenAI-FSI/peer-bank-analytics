@@ -101,7 +101,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: !Ref LatestAmiId
-      InstanceType: t3.small
+      InstanceType: t3.medium
       SecurityGroupIds: [!Ref SecurityGroup]
       IamInstanceProfile: !Ref InstanceProfile
       UserData:
@@ -109,14 +109,8 @@ Resources:
           #!/bin/bash
           exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
           
-          # Update system
-          yum update -y
-          yum install -y docker git python3-pip
-          
-          # Start Docker
-          systemctl start docker
-          systemctl enable docker
-          usermod -a -G docker ec2-user
+          # Update system (minimal)
+          yum install -y git python3-pip curl -q
           
           # Clone repository
           git clone https://github.com/AWS-Samples-GenAI-FSI/peer-bank-analytics.git /home/ec2-user/app
@@ -165,35 +159,25 @@ Resources:
               return True
           AUTHEOF
           
-          # Create optimized Dockerfile
-          cat > Dockerfile << 'EOF'
-          FROM python:3.9-slim
-          WORKDIR /app
-          COPY requirements.txt .
-          RUN pip install --no-cache-dir -r requirements.txt
-          COPY . .
-          RUN mkdir -p .streamlit
-          EXPOSE 8501
-          ENV AWS_DEFAULT_REGION=${AWS::Region}
-          ENV BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
-          HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-            CMD curl -f http://localhost:8501/_stcore/health || exit 1
-          CMD ["streamlit", "run", "1_🏠_Home.py"]
-          EOF
+          # Install Python dependencies directly (faster than Docker build)
+          pip3 install -r requirements.txt
           
-          # Build and run application
-          docker build -t banking-app . || { echo "Docker build failed"; exit 1; }
-          docker run -d -p 80:8501 --name banking-container --restart unless-stopped banking-app || { echo "Docker run failed"; exit 1; }
+          # Set environment variables
+          export AWS_DEFAULT_REGION=${AWS::Region}
+          export BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
           
-          # Wait for application to be ready
-          for i in {1..30}; do
-            if curl -f http://localhost:80/_stcore/health 2>/dev/null; then
+          # Start application directly
+          nohup python3 -m streamlit run 1_🏠_Home.py --server.port=80 --server.address=0.0.0.0 --server.headless=true > /var/log/streamlit.log 2>&1 &
+          
+          # Wait for application to be ready (faster check)
+          for i in {1..20}; do
+            if curl -f http://localhost:80 2>/dev/null | grep -q "Banking"; then
               echo "Application is ready"
               /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
               exit 0
             fi
-            echo "Waiting for application... ($i/30)"
-            sleep 10
+            echo "Waiting for application... ($i/20)"
+            sleep 5
           done
           
           echo "Application failed to start"
@@ -201,7 +185,7 @@ Resources:
     CreationPolicy:
       ResourceSignal:
         Count: 1
-        Timeout: PT20M
+        Timeout: PT10M
 
 Outputs:
   ApplicationURL:
