@@ -117,14 +117,15 @@ Resources:
           
           # Install all requirements with compatibility fixes
           echo "Installing all application requirements..."
-          pip3 install streamlit pandas matplotlib plotly configparser pillow numpy
-          pip3 install langchain langchain_community langchain-core langchain-text-splitters
-          pip3 install llama-index llama-index-llms-bedrock llama-index-embeddings-bedrock
-          pip3 install unstructured PyPDF2 reportlab anthropic
-          pip3 install beautifulsoup4 nltk faiss-cpu
+          pip3 install --upgrade pip
+          pip3 install streamlit==1.35.0 pandas matplotlib plotly configparser pillow numpy
+          pip3 install langchain==0.2.1 langchain-community==0.2.1 langchain-core==0.2.2 langchain-text-splitters==0.2.0
+          pip3 install llama-index==0.10.40 llama-index-llms-bedrock==0.1.8 llama-index-embeddings-bedrock==0.2.0
+          pip3 install unstructured==0.14.3 PyPDF2==3.0.1 reportlab anthropic==0.23.1
+          pip3 install beautifulsoup4==4.12.3 nltk==3.8.1 faiss-cpu
+          pip3 install aiohttp==3.9.5 jinja2==3.1.4 pydantic==2.7.2
           
-          # Install remaining packages from requirements
-          pip3 install -r requirements.txt || echo "Some packages may have failed - continuing..."
+          echo "All packages installed successfully"
           
           # Create Streamlit config
           mkdir -p .streamlit

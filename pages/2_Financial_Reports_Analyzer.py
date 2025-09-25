@@ -10,7 +10,8 @@ from src.utils.sec_edgar import SECEdgarAPI
 
 # Check if user is authenticated - auto redirect to home
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("1_🏠_Home.py")
+    st.experimental_set_query_params(page="home")
+    st.stop()
 
 
 
@@ -488,7 +489,7 @@ def run_app():
         with col:
             if st.button(f"🏦 {display_name}", key=f"bank_{i}", use_container_width=True):
                 st.session_state.selected_bank = bank
-                st.rerun()
+                st.experimental_rerun()
     
     # Auto-detect bank from uploaded document content if using Upload Reports
     if report_source == "Upload Reports" and 'report_data' in locals() and report_data:
