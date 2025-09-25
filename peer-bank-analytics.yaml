@@ -166,13 +166,16 @@ Resources:
           export AWS_DEFAULT_REGION=${AWS::Region}
           export BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
           
-          # Start application directly
-          nohup python3 -m streamlit run 1_🏠_Home.py --server.port=80 --server.address=0.0.0.0 --server.headless=true > /var/log/streamlit.log 2>&1 &
+          # Start application on port 8501 (no sudo needed)
+          nohup python3 -m streamlit run 1_🏠_Home.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true > /var/log/streamlit.log 2>&1 &
           
-          # Wait for application to be ready (faster check)
+          # Setup port forwarding from 80 to 8501
+          iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8501
+          
+          # Wait for application to be ready with better error handling
           for i in {1..20}; do
-            if curl -f http://localhost:80 2>/dev/null | grep -q "Banking"; then
-              echo "Application is ready"
+            if curl -f http://localhost:8501 2>/dev/null | grep -q "Banking\|Streamlit"; then
+              echo "Application is ready on port 8501"
               /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
               exit 0
             fi
@@ -180,7 +183,11 @@ Resources:
             sleep 5
           done
           
-          echo "Application failed to start"
+          # If we get here, something failed - log details
+          echo "Application failed to start. Checking logs:"
+          tail -20 /var/log/streamlit.log
+          echo "Process status:"
+          ps aux | grep streamlit
           /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
     CreationPolicy:
       ResourceSignal:
