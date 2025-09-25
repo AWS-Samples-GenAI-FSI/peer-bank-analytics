@@ -54,12 +54,21 @@ When a user interacts with the POC, the flow is as follows:
 - **LDR** - Loan-to-Deposit Ratio: Loans as % of deposits
 - **CRE Concentration** - Commercial real estate loans as % of total capital
 
-## How to use this Repo:
+## Deployment Options:
 
-### Prerequisites:
-- AWS CLI installed and configured with access to Amazon Bedrock.
-- Python v3.8 or greater. The POC runs on Python.
-- AWS account with permissions to access Amazon Bedrock services.
+### Option 1: One-Click CloudFormation Deployment (Recommended)
+[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?templateURL=https://raw.githubusercontent.com/AWS-Samples-GenAI-FSI/peer-bank-analytics/main/peer-bank-analytics.yaml)
+
+- **Zero Configuration**: No parameters required
+- **Auto Security**: Restricts access to your IP only
+- **Ready in 15 minutes**: Fully automated setup
+
+### Option 2: Manual Local Setup
+
+#### Prerequisites:
+- AWS CLI installed and configured with access to Amazon Bedrock
+- Python v3.8 or greater
+- AWS account with permissions to access Amazon Bedrock Converse API
 
 ### Steps
 
@@ -126,7 +135,7 @@ AWS_ACCESS_KEY_ID=your_access_key_here
 AWS_SECRET_ACCESS_KEY=your_secret_key_here
 
 # Bedrock Configuration
-BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 ```
 
 8. **Start the application from your terminal:**
@@ -163,12 +172,14 @@ streamlit run 1_🏠_Home.py
 
 ## Key Features
 - **Real-Time Banking Data**: Direct integration with FDIC APIs for live financial metrics
-- **AI-Powered Analysis**: Claude AI provides intelligent insights and recommendations
+- **Streaming AI Analysis**: Real-time Claude AI responses with typing indicators
+- **SEC Filing Analysis**: Comprehensive 10-K/10-Q report analysis with year filtering
 - **Interactive Visualizations**: Dynamic charts showing trends, comparisons, and correlations
 - **Multi-Bank Comparison**: Analyze up to 10 major US banks simultaneously
 - **Historical Trends**: Quarterly analysis from 2023-2024
-- **Performance Monitoring**: Track banking metrics over time
-- **Export Capabilities**: Download analysis data for further review
+- **One-Click Deployment**: Zero-parameter CloudFormation template
+- **Enhanced Security**: Auto IP detection for secure access
+- **Export Capabilities**: Download analysis data and reports as PDF
 
 ## Troubleshooting
 
