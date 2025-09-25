@@ -12,6 +12,12 @@ from PIL import Image ###### Import Image library for loading images
 import os ###### Import os library for environment variables
 from src.utils.ui_helpers import * ###### Import custom utility functions
 
+# Check if user is authenticated - auto redirect to home
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("1_🏠_Home.py")
+
+
+
 config_object = ConfigParser()
 config_object.read("src/utils/bank_config.ini")
 hline=Image.open(config_object["IMAGES"]["hline"]) ###### image for formatting landing screen
@@ -159,6 +165,7 @@ def get_fdic_banking_data():
                                         
                                         continue  # Skip fallback if we got real data
                             except Exception as e:
+                                st.info(f"ℹ️ Using estimated data for {bank_data.get('NAME', bank_info['name'])} (FDIC historical API unavailable)")
                                 pass  # Fall through to fallback
                         
                         # Fallback: Create realistic quarterly trends if historical API fails
@@ -211,16 +218,18 @@ def get_fdic_banking_data():
                 {"Metric Name": "CRE Concentration Ratio (%)", "Metric Description": "Commercial real estate loans as percentage of total capital"}
             ])
             
+            st.success("✅ **Live FDIC Data**: Using real banking metrics from official FDIC APIs.")
             return df, metrics_data
         else:
             raise Exception("No real banking data could be fetched")
             
     except Exception as e:
-        st.error(f"FDIC API Error: {e}")
+        st.warning(f"⚠️ FDIC API unavailable ({e}). Using mock data for demonstration.")
         return create_sample_data()
 
 def create_sample_data():
     """Create sample data as fallback"""
+    st.info("📊 **Note**: Currently displaying simulated banking data due to FDIC API unavailability.")
     banks = [
         "JPMorgan Chase", "Bank of America", "Wells Fargo", "Citigroup", "U.S. Bancorp",
         "PNC Financial", "Goldman Sachs", "Truist Financial", "Capital One", "TD Bank"
@@ -338,39 +347,108 @@ def run_app():
         """
         
         try:
-            # Direct Claude call without RAG
+            # Enhanced Claude call with streaming
             import boto3
-            import json
             
             bedrock = boto3.client('bedrock-runtime')
-            response = bedrock.invoke_model(
-                modelId="anthropic.claude-3-haiku-20240307-v1:0",
-                body=json.dumps({
-                    "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 2000,
-                    "messages": [{
-                        "role": "user",
-                        "content": prompt
-                    }]
-                })
+            
+            # Enhanced prompt for more thorough analysis
+            enhanced_prompt = f"""
+As a senior banking analyst with 15+ years of experience, provide a comprehensive peer analysis of {base_bank} vs {selected_peer_banks} for the metric "{metric}" over {period}.
+
+## ACTUAL BANKING DATA:
+{data_summary}
+
+## REQUIRED COMPREHENSIVE ANALYSIS (minimum 500 words):
+
+### 1. PERFORMANCE COMPARISON
+- Detailed comparison of {base_bank} vs each peer bank
+- Quantify performance gaps with specific percentages
+- Identify best and worst performers with exact figures
+
+### 2. TREND ANALYSIS
+- Quarter-over-quarter trends for each bank
+- Seasonal patterns and cyclical behavior
+- Performance trajectory and momentum
+
+### 3. INDUSTRY CONTEXT
+- How these banks compare to industry benchmarks
+- Regulatory implications of the metric levels
+- Market conditions impact on performance
+
+### 4. RISK ASSESSMENT
+- Banks showing concerning trends
+- Regulatory risk factors
+- Competitive positioning risks
+
+### 5. STRATEGIC INSIGHTS
+- What the data reveals about each bank's strategy
+- Operational efficiency indicators
+- Market share implications
+
+### 6. ACTIONABLE RECOMMENDATIONS
+- Specific actions for {base_bank}
+- Areas for improvement
+- Competitive advantages to leverage
+
+Provide specific numbers, percentages, and detailed banking insights. Use professional terminology and quantitative analysis.
+"""
+            
+            response = bedrock.converse_stream(
+                modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+                messages=[{
+                    "role": "user",
+                    "content": [{"text": enhanced_prompt}]
+                }],
+                inferenceConfig={"maxTokens": 4000}
             )
             
-            result = json.loads(response['body'].read())
-            return result['content'][0]['text']
+            # Stream the response
+            full_text = ""
+            placeholder = st.empty()
             
-        except Exception as e:
-            # Fallback analysis
-            base_avg = filtered_data[filtered_data['Bank Type'] == 'Base Bank']['Value'].mean()
-            peer_avg = filtered_data[filtered_data['Bank Type'] == 'Peer Bank']['Value'].mean()
+            for event in response['stream']:
+                if 'contentBlockDelta' in event:
+                    delta = event['contentBlockDelta']['delta']
+                    if 'text' in delta:
+                        full_text += delta['text']
+                        placeholder.markdown(full_text + "▌")  # Add cursor
             
-            performance = "outperforming" if base_avg > peer_avg else "underperforming"
+            # Remove cursor and show final text
+            placeholder.markdown(full_text)
             
-            return f"""
-            • {base_bank} has an average {metric} of {base_avg:.2f}% over the period {period}
-            • Peer banks average {peer_avg:.2f}% for the same metric
-            • The base bank is {performance} its peers by {abs(base_avg - peer_avg):.2f} percentage points
-            • This indicates {'strong' if base_avg > peer_avg else 'weak'} performance relative to the peer group
-            """
+            return full_text
+            
+        except Exception as e1:
+            try:
+                # Fallback to Haiku with streaming
+                response = bedrock.converse_stream(
+                    modelId="anthropic.claude-3-haiku-20240307-v1:0",
+                    messages=[{
+                        "role": "user",
+                        "content": [{"text": enhanced_prompt}]
+                    }],
+                    inferenceConfig={"maxTokens": 4000}
+                )
+                
+                full_text = ""
+                placeholder = st.empty()
+                
+                for event in response['stream']:
+                    if 'contentBlockDelta' in event:
+                        delta = event['contentBlockDelta']['delta']
+                        if 'text' in delta:
+                            full_text += delta['text']
+                            placeholder.markdown(full_text + "▌")  # Add cursor
+                
+                # Remove cursor and show final text
+                placeholder.markdown(full_text)
+                
+                return full_text
+                
+            except Exception as e2:
+                st.error(f"❌ **Amazon Bedrock Error:** Unable to access Claude AI models. Please check your AWS credentials and Bedrock permissions. Error: {str(e2)}")
+                st.stop()
 
     # Streamlit app
     # st.set_page_config(page_title="Peer Bank Risk Analytics", layout="wide", initial_sidebar_state="expanded")
@@ -393,8 +471,10 @@ def run_app():
     # Add custom CSS to apply the theme
     st.markdown("""
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
         html, body, [class*="css"] {
-            font-family: Arial, sans-serif !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
         }
         
         body {
@@ -415,31 +495,76 @@ def run_app():
         }
         
         h1, h2, h3, h4, h5, h6 {
-            font-family: Arial, sans-serif !important;
+            font-family: 'Inter', sans-serif !important;
             font-weight: 600 !important;
         }
         
         p, span, div, label {
-            font-family: Arial, sans-serif !important;
+            font-family: 'Inter', sans-serif !important;
+        }
+        
+        /* Style login input boxes */
+        .stTextInput > div > div > input {
+            border: 2px solid #e0e0e0 !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            font-family: 'Inter', sans-serif !important;
+            background-color: #ffffff !important;
+        }
+        
+        .stTextInput > div > div > input:focus {
+            border-color: #2C5F41 !important;
+            box-shadow: 0 0 0 2px rgba(44, 95, 65, 0.2) !important;
         }
         
         .info-tile {
-            padding: 1rem;
+            padding: 0.5rem;
             border-radius: 5px;
-            margin-bottom: 1rem;
-            height: 150px;
+            margin-bottom: 0.5rem;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
         }
         
         .info-tile h2 {
-            padding: 0.5rem;
-            border-radius: 15px;
-            font-size: 1.5rem;
+            padding: 0.2rem;
+            border-radius: 10px;
+            font-size: 1rem;
             font-weight: 600;
             color: #FFFFFF;
+            margin: 0 0 0.2rem 0;
+            text-align: center;
         }
         
         .info-tile h5 {
             color: #FFFFFF;
+            font-size: 0.9rem;
+            margin: 0;
+            text-align: center;
+        }
+        
+        .stDeployButton {
+            display: none !important;
+        }
+        
+        [data-testid="stToolbar"] {
+            display: none !important;
+        }
+        
+        .stActionButton {
+            display: none !important;
+        }
+        
+        /* Hide keyword text */
+        .stApp [data-testid="stHeader"] {
+            display: none !important;
+        }
+        
+        .stApp header {
+            display: none !important;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -516,7 +641,7 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
                 data_quarters, metric_data = get_fdic_banking_data()
                 data_years = data_quarters.copy()
         else:
-            st.sidebar.info("📁 Upload CSV files to use custom data")
+
             data_quarters, metric_data = get_fdic_banking_data()
             data_years = data_quarters.copy()
     else:
@@ -668,7 +793,9 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     
     # Filter data based on selections
     base_bank = selected_base_bank
-    filtered_data = data[(data['Bank'] == base_bank) | (data['Bank'].isin(selected_peer_banks))]
+    all_selected_banks = [base_bank] + selected_peer_banks
+    
+    filtered_data = data[data['Bank'].isin(all_selected_banks)]
     filtered_data = filtered_data[filtered_data['Metric'] == selected_metric]
     if period_type == "Quarters":
         filtered_data = filtered_data[(filtered_data['Quarter'] >= start_quarter) & (filtered_data['Quarter'] <= end_quarter)]
@@ -677,80 +804,167 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
 
     # Visualization
     if period_type == "Quarters":
-        fig_line = px.line(filtered_data, x='Quarter', y='Value', color='Bank',
-                           title=f"<b><span style='font-size: 24px;'>{selected_metric} Comparison ({period})</span></b>")
-        fig_line.update_layout(title_font_size=24, xaxis_title='Quarter')
-
-        # Radar Chart - Multi-metric comparison
-        radar_data = data_quarters[data_quarters['Bank'].isin([base_bank] + selected_peer_banks)]
-        latest_quarter = radar_data['Quarter'].max()
-        radar_subset = radar_data[radar_data['Quarter'] == latest_quarter]
+        # Add jitter to separate overlapping points
+        import numpy as np
+        filtered_data_jitter = filtered_data.copy()
+        filtered_data_jitter['Value_jitter'] = filtered_data_jitter['Value'] + np.random.normal(0, 0.01, len(filtered_data_jitter))
         
-        fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
-                                 line_close=True, 
-                                 title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_quarter})</span></b>")
-        fig_radar.update_traces(fill='toself', opacity=0.6)
-        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
+        fig_line = px.scatter(filtered_data_jitter, x='Quarter', y='Value_jitter', color='Bank', size_max=15,
+                             title=f"<b><span style='font-size: 24px;'>{selected_metric} Quarterly Trends ({period})</span></b>")
+        fig_line.update_traces(marker=dict(size=12, line=dict(width=2, color='white')))
+        fig_line.update_layout(title_font_size=24, xaxis_title='Quarter', yaxis_title=selected_metric)
 
-        # Bar chart
-        bar_data = filtered_data.groupby(['Bank', 'Quarter'])['Value'].mean().reset_index()
-        fig_bar = px.bar(bar_data, x='Quarter', y='Value', color='Bank', barmode='group',
-                         title=f"<b><span style='font-size: 24px;'>Bar Chart for {selected_metric} ({period})</span></b>")
-        st.plotly_chart(fig_bar, use_container_width=True)
+        # Comparison Chart - Use same filtered data as line chart
+        latest_quarter = filtered_data['Quarter'].max()
+        radar_subset = filtered_data[filtered_data['Quarter'] == latest_quarter]
+        
+        # Only show radar chart if we have multiple metrics
+        if len(radar_subset['Metric'].unique()) > 1:
+            fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
+                                     line_close=True, 
+                                     title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_quarter})</span></b>")
+            fig_radar.update_traces(fill='toself', opacity=0.6)
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
+        else:
+            # Show bar chart instead for single metric - use filtered_data instead of radar_subset
+            latest_quarter_data = filtered_data[filtered_data['Quarter'] == filtered_data['Quarter'].max()]
+            fig_radar = px.bar(latest_quarter_data, x='Bank', y='Value', color='Bank',
+                              title=f"<b><span style='font-size: 24px;'>{selected_metric} by Bank ({latest_quarter})</span></b>")
+            fig_radar.update_layout(showlegend=False)
 
-        # Add a horizontal line after the bar chart
+        # Risk Heatmap - Banking specific visualization
+        heatmap_data = filtered_data.pivot_table(values='Value', index='Bank', columns='Quarter', fill_value=0)
+        fig_heatmap = px.imshow(heatmap_data, 
+                               title=f"<b><span style='font-size: 24px;'>Risk Heatmap: {selected_metric} ({period})</span></b>",
+                               color_continuous_scale='RdYlGn_r',  # Red=High Risk, Green=Low Risk
+                               aspect='auto')
+        fig_heatmap.update_layout(xaxis_title='Quarter', yaxis_title='Bank')
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+
+        # Add a horizontal line after the heatmap
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # Display line chart and radar chart side by side
-        col_line, col_radar = st.columns(2)
-        with col_line:
+        # Display performance trend and peer comparison side by side
+        col_trend, col_comparison = st.columns(2)
+        with col_trend:
             st.plotly_chart(fig_line, use_container_width=True)
-        with col_radar:
+        with col_comparison:
             st.plotly_chart(fig_radar, use_container_width=True)
 
     else:
-        fig_line = px.line(filtered_data, x='Year', y='Value', color='Bank',
-                           title=f"<b><span style='font-size: 24px;'>{selected_metric} Comparison ({period})</span></b>")
-        fig_line.update_layout(title_font_size=24, xaxis_title='Year', xaxis_tickformat='%Y')  # Display years as full integers
+        # Add jitter to separate overlapping points
+        import numpy as np
+        filtered_data_jitter = filtered_data.copy()
+        filtered_data_jitter['Value_jitter'] = filtered_data_jitter['Value'] + np.random.normal(0, 0.01, len(filtered_data_jitter))
+        
+        fig_line = px.scatter(filtered_data_jitter, x='Year', y='Value_jitter', color='Bank', size_max=15,
+                             title=f"<b><span style='font-size: 24px;'>{selected_metric} Yearly Trends ({period})</span></b>")
+        fig_line.update_traces(marker=dict(size=12, line=dict(width=2, color='white')))
+        fig_line.update_layout(title_font_size=24, xaxis_title='Year', yaxis_title=selected_metric, xaxis_tickformat='%Y')
 
         # Radar Chart - Multi-metric comparison
         radar_data = data_years[data_years['Bank'].isin([base_bank] + selected_peer_banks)]
         latest_year = radar_data['Year'].max()
         radar_subset = radar_data[radar_data['Year'] == latest_year]
         
-        fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
-                                 line_close=True,
-                                 title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_year})</span></b>")
-        fig_radar.update_traces(fill='toself', opacity=0.6)
-        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
+        # Only show radar chart if we have multiple metrics
+        if len(radar_subset['Metric'].unique()) > 1:
+            fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
+                                     line_close=True,
+                                     title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_year})</span></b>")
+            fig_radar.update_traces(fill='toself', opacity=0.6)
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
+        else:
+            # Show bar chart instead for single metric
+            fig_radar = px.bar(radar_subset, x='Bank', y='Value', color='Bank',
+                              title=f"<b><span style='font-size: 24px;'>{selected_metric} by Bank ({latest_year})</span></b>")
+            fig_radar.update_layout(showlegend=False)
 
-		# Bar chart
-        bar_data = filtered_data.groupby(['Bank', 'Year'])['Value'].mean().reset_index()
-        fig_bar = px.bar(bar_data, x='Year', y='Value', color='Bank', barmode='group',
-                         title=f"<b><span style='font-size: 24px;'>Bar Chart for {selected_metric} ({period})</span></b>")
-        fig_bar.update_layout(xaxis_tickformat='%Y')  # Display years as full integers
-        st.plotly_chart(fig_bar, use_container_width=True)
+        # Risk Heatmap - Banking specific visualization
+        heatmap_data = filtered_data.pivot_table(values='Value', index='Bank', columns='Year', fill_value=0)
+        fig_heatmap = px.imshow(heatmap_data, 
+                               title=f"<b><span style='font-size: 24px;'>Risk Heatmap: {selected_metric} ({period})</span></b>",
+                               color_continuous_scale='RdYlGn_r',  # Red=High Risk, Green=Low Risk
+                               aspect='auto')
+        fig_heatmap.update_layout(xaxis_title='Year', yaxis_title='Bank')
+        st.plotly_chart(fig_heatmap, use_container_width=True)
 
-        # Add a horizontal line after the bar chart
+        # Add a horizontal line after the heatmap
         st.markdown("<hr>", unsafe_allow_html=True)
 
-        # Display line chart and radar chart side by side
-        col_line, col_radar = st.columns(2)
-        with col_line:
+        # Display performance trend and peer comparison side by side
+        col_trend, col_comparison = st.columns(2)
+        with col_trend:
             st.plotly_chart(fig_line, use_container_width=True)
-        with col_radar:
+        with col_comparison:
             st.plotly_chart(fig_radar, use_container_width=True)
 
     # Add another horizontal line before the summary section
     st.markdown("<hr>", unsafe_allow_html=True)
 
     # Summary and description
-    #summary = generate_summary(filtered_data, selected_metric, selected_peer_banks, period)
-    summary = generate_llm_output(selected_metric, selected_peer_banks, period, filtered_data)
-
     st.markdown("<h2 style='font-family: Arial, sans-serif; font-size: 2rem; text-align: center;'>Metrics Summary</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='font-family: Arial, sans-serif; font-size: 1.2rem;'>" + summary + "</p>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Generate streaming analysis
+    summary = generate_llm_output(selected_metric, selected_peer_banks, period, filtered_data)
+    
+    if summary is None:
+        return  # Stop execution if Claude failed
+    
+    # Add PDF download for analysis
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        import io
+        
+        def create_analysis_pdf(bank_name, metric, summary_text, data):
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter)
+            styles = getSampleStyleSheet()
+            story = []
+            
+            # Title
+            title = Paragraph(f"Banking Analysis Report - {bank_name}", styles['Title'])
+            story.append(title)
+            story.append(Spacer(1, 0.2*inch))
+            
+            # Metric
+            metric_para = Paragraph(f"Metric: {metric}", styles['Heading2'])
+            story.append(metric_para)
+            story.append(Spacer(1, 0.2*inch))
+            
+            # Date
+            date = Paragraph(f"Generated on: {datetime.now().strftime('%B %d, %Y')}", styles['Normal'])
+            story.append(date)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Analysis
+            analysis_para = Paragraph(summary_text.replace('\n', '<br/>'), styles['Normal'])
+            story.append(analysis_para)
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Data table
+            story.append(Paragraph("Data Summary:", styles['Heading3']))
+            for _, row in data.iterrows():
+                data_text = f"{row['Bank']}: {row['Value']:.2f}% ({row['Quarter']})"
+                story.append(Paragraph(data_text, styles['Normal']))
+            
+            doc.build(story)
+            buffer.seek(0)
+            return buffer
+        
+        pdf_buffer = create_analysis_pdf(base_bank, selected_metric, summary, filtered_data)
+        st.download_button(
+            label="📄 Download Analysis as PDF",
+            data=pdf_buffer.getvalue(),
+            file_name=f"{base_bank}_{selected_metric}_Analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            type="secondary"
+        )
+    except ImportError:
+        st.info("💡 Install reportlab to enable PDF download: `pip install reportlab`")
 
     # Add a horizontal line after the summary section
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -758,20 +972,19 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     # Display filtered data
     st.markdown("<h2 style='font-family: Arial, sans-serif; font-size: 2rem; text-align: center;'>Input Data</h2>", unsafe_allow_html=True)
 
-    col1, col2 = st.columns([1, 3])
-    with col2:
-        st.markdown("<div style='overflow-x: auto;'>", unsafe_allow_html=True)
-        styled_data = filtered_data.style.apply(
-            lambda row: ['background-color: lightblue'] * len(row) if row.name % 2 == 0 else ['background-color: #e6ffeb'] * len(row),
-            axis=1
-        ).set_table_styles([
-            {'selector': 'th', 'props': [('background-color', '#2F4F4F'), ('color', 'white'), ('font-weight', 'bold')]},
-            {'selector': 'td', 'props': [('border', '1px solid #2F4F4F'), ('padding', '0.5rem'), ('white-space', 'pre-wrap'), ('word-wrap', 'break-word')]},
-            {'selector': 'tr', 'props': [('max-height', '50px'), ('overflow', 'hidden'), ('text-overflow', 'ellipsis'), ('white-space', 'nowrap')]},
-            {'selector': 'table', 'props': [('border-collapse', 'collapse'), ('width', '100%'), ('font-family', 'Arial, sans-serif'), ('font-size', '0.9rem')]}
-        ], overwrite=False)
-        st.dataframe(styled_data)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Center the data table
+    st.markdown("<div style='display: flex; justify-content: center; overflow-x: auto;'>", unsafe_allow_html=True)
+    styled_data = filtered_data.style.apply(
+        lambda row: ['background-color: lightblue'] * len(row) if row.name % 2 == 0 else ['background-color: #e6ffeb'] * len(row),
+        axis=1
+    ).set_table_styles([
+        {'selector': 'th', 'props': [('background-color', '#2F4F4F'), ('color', 'white'), ('font-weight', 'bold')]},
+        {'selector': 'td', 'props': [('border', '1px solid #2F4F4F'), ('padding', '0.5rem'), ('white-space', 'pre-wrap'), ('word-wrap', 'break-word')]},
+        {'selector': 'tr', 'props': [('max-height', '50px'), ('overflow', 'hidden'), ('text-overflow', 'ellipsis'), ('white-space', 'nowrap')]},
+        {'selector': 'table', 'props': [('border-collapse', 'collapse'), ('width', '100%'), ('font-family', 'Arial, sans-serif'), ('font-size', '0.9rem')]}
+    ], overwrite=False)
+    st.dataframe(styled_data)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Download data as CSV
     csv_buffer = io.StringIO()
@@ -789,6 +1002,8 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     # Footer note
     st.markdown("---")
     st.markdown("<p style='text-align: center; color: #666; font-size: 0.9rem; font-family: Arial, sans-serif;'>Powered by Amazon Bedrock - BankIQ+</p>", unsafe_allow_html=True)
+
+
 
 if __name__ == "__main__":
     run_app()

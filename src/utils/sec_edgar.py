@@ -13,53 +13,59 @@ class SECEdgarAPI:
             'Host': 'data.sec.gov'
         }
         
-        # Bank CIK numbers (Central Index Key)
+        # Top 10 banks matching your TOP_BANKS list
         self.bank_ciks = {
-            "JPMORGAN CHASE BANK": "0000019617",
-            "BANK OF AMERICA": "0000070858", 
-            "WELLS FARGO BANK": "0000072971",
-            "CITIBANK": "0000831001",
-            "U.S. BANK": "0000036104",
-            "PNC BANK": "0000713676",
-            "GOLDMAN SACHS BANK": "0000886982",
-            "TRUIST BANK": "0000092230",
-            "CAPITAL ONE": "0000927628",
-            "TD BANK": "0000947263"
+            "JPMORGAN CHASE & CO": "0000019617",
+            "BANK OF AMERICA CORP": "0000070858", 
+            "WELLS FARGO & COMPANY": "0000072971",
+            "CITIGROUP INC": "0000831001",
+            "U.S. BANCORP": "0000036104",
+            "PNC FINANCIAL SERVICES": "0000713676",
+            "TRUIST FINANCIAL CORP": "0001534701",
+            "CAPITAL ONE FINANCIAL": "0000927628",
+            "REGIONS FINANCIAL CORP": "0001281761",
+            "FIFTH THIRD BANCORP": "0000035527"
         }
     
-    def get_bank_filings(self, bank_name, form_type="10-K", limit=5):
-        """Get recent filings for a bank"""
+    def get_bank_filings(self, bank_name, form_type="10-K", limit=100, year=None):
+        """Get filings for a bank with optional year filter"""
         cik = self.bank_ciks.get(bank_name)
         if not cik:
             return []
             
         try:
+            # Get both recent and historical filings
             url = f"https://data.sec.gov/submissions/CIK{cik}.json"
             response = requests.get(url, headers=self.headers)
             
-            if response.status_code == 200:
-                data = response.json()
-                filings = data.get('filings', {}).get('recent', {})
+            if response.status_code != 200:
+                return []
                 
-                # Filter for specific form type
-                forms = filings.get('form', [])
-                dates = filings.get('filingDate', [])
-                accessions = filings.get('accessionNumber', [])
-                
-                results = []
-                for i, form in enumerate(forms):
-                    if form == form_type and len(results) < limit:
-                        results.append({
-                            'form': form,
-                            'filing_date': dates[i],
-                            'accession': accessions[i],
-                            'url': f"https://www.sec.gov/Archives/edgar/data/{cik.lstrip('0')}/{accessions[i].replace('-', '')}/{accessions[i]}-index.htm"
-                        })
-                
-                return results
+            data = response.json()
+            all_results = []
+            
+            # Process recent filings
+            recent = data.get('filings', {}).get('recent', {})
+            all_results.extend(self._process_filings(recent, cik, form_type, year))
+            
+            # Process historical filings if available
+            files = data.get('filings', {}).get('files', [])
+            for file_info in files:
+                if len(all_results) >= limit:
+                    break
+                    
+                # Fetch historical filing data
+                hist_url = f"https://data.sec.gov/submissions/{file_info['name']}"
+                hist_response = requests.get(hist_url, headers=self.headers)
+                if hist_response.status_code == 200:
+                    hist_data = hist_response.json()
+                    all_results.extend(self._process_filings(hist_data, cik, form_type, year))
+                    time.sleep(0.1)  # Rate limiting
+            
+            return all_results[:limit]
                 
         except Exception as e:
-            print(f"Error fetching filings: {e}")
+            print(f"Error fetching filings for {bank_name}: {e}")
             return []
     
     def get_financial_facts(self, bank_name):
@@ -116,3 +122,26 @@ class SECEdgarAPI:
         except Exception as e:
             print(f"Error extracting metrics: {e}")
             return {}
+    
+    def _process_filings(self, filings_data, cik, form_type, year):
+        """Process filing data and filter by form type and year"""
+        forms = filings_data.get('form', [])
+        dates = filings_data.get('filingDate', [])
+        accessions = filings_data.get('accessionNumber', [])
+        
+        results = []
+        for i, form in enumerate(forms):
+            if form == form_type:
+                filing_date = dates[i]
+                filing_year = int(filing_date.split('-')[0])
+                
+                # Apply year filter if specified
+                if year is None or filing_year == year:
+                    results.append({
+                        'form': form,
+                        'filing_date': filing_date,
+                        'accession': accessions[i],
+                        'url': f"https://www.sec.gov/Archives/edgar/data/{cik.lstrip('0')}/{accessions[i].replace('-', '')}/{accessions[i]}-index.htm"
+                    })
+        
+        return results
