@@ -65,37 +65,51 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
           
-          # Log everything for debugging
-          exec > >(tee -a /var/log/setup.log) 2>&1
-          echo "Starting setup at $(date)"
+          # Install CloudWatch agent for logging
+          yum install -y awslogs
           
-          # Update system and install dependencies
-          yum update -y
-          yum install -y git python3-pip curl
+          # Configure CloudWatch logging
+          cat > /etc/awslogs/awslogs.conf << 'EOF'
+          [general]
+          state_file = /var/lib/awslogs/agent-state
+          
+          [/var/log/user-data.log]
+          file = /var/log/user-data.log
+          log_group_name = /aws/ec2/banking-analytics
+          log_stream_name = {instance_id}/user-data
+          datetime_format = %b %d %H:%M:%S
+          EOF
+          
+          # Start CloudWatch agent
+          service awslogs start
+          chkconfig awslogs on
+          
+          # Redirect all output to log file AND CloudWatch
+          exec > >(tee /var/log/user-data.log) 2>&1
+          
+          echo "=== Starting banking analytics setup at $(date) ==="
+          
+          # Update system
+          echo "Updating system..."
+          yum update -y || { echo "YUM UPDATE FAILED"; /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}; exit 1; }
+          
+          # Install dependencies
+          echo "Installing dependencies..."
+          yum install -y git python3-pip curl || { echo "DEPENDENCY INSTALL FAILED"; /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}; exit 1; }
           
           # Clone repository
           echo "Cloning repository..."
-          git clone https://github.com/AWS-Samples-GenAI-FSI/peer-bank-analytics.git /home/ec2-user/app || {
-            echo "Git clone failed"
-            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
-            exit 1
-          }
+          git clone https://github.com/AWS-Samples-GenAI-FSI/peer-bank-analytics.git /home/ec2-user/app || { echo "GIT CLONE FAILED"; /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}; exit 1; }
           
           cd /home/ec2-user/app
           chown -R ec2-user:ec2-user /home/ec2-user/app
           
-          # Install dependencies
-          echo "Installing Python dependencies..."
-          pip3 install -r requirements.txt || {
-            echo "Pip install failed"
-            cat requirements.txt
-            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
-            exit 1
-          }
+          # Install Python packages
+          echo "Installing Python packages..."
+          pip3 install -r requirements.txt || { echo "PIP INSTALL FAILED"; cat requirements.txt; /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}; exit 1; }
           
-          # Create streamlit config
+          # Create Streamlit config
           mkdir -p .streamlit
           cat > .streamlit/config.toml << 'EOF'
           [server]
@@ -112,53 +126,39 @@ Resources:
           export AWS_DEFAULT_REGION=${AWS::Region}
           export BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
           
-          # Test streamlit installation
-          echo "Testing streamlit..."
-          python3 -c "import streamlit; print('Streamlit OK')" || {
-            echo "Streamlit import failed"
-            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
-            exit 1
-          }
+          # Test Python imports
+          echo "Testing Python imports..."
+          python3 -c "import streamlit; print('Streamlit OK')" || { echo "STREAMLIT IMPORT FAILED"; /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}; exit 1; }
           
           # Start application
-          echo "Starting application..."
+          echo "Starting Streamlit application..."
           nohup python3 -m streamlit run "1_🏠_Home.py" --server.port=8501 --server.address=0.0.0.0 --server.headless=true > /var/log/streamlit.log 2>&1 &
           
           # Setup port forwarding
           iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8501
           
-          # Wait for application with comprehensive debugging
+          # Wait for application
           echo "Waiting for application to start..."
-          for i in {1..24}; do
+          for i in {1..20}; do
             if curl -f http://localhost:8501 2>/dev/null | grep -q "Banking\|Streamlit\|html"; then
-              echo "✅ Application is ready on port 8501"
+              echo "✅ APPLICATION READY"
               /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
               exit 0
             fi
-            echo "⏳ Waiting for application... ($i/24)"
-            sleep 5
+            echo "Waiting... ($i/20)"
+            sleep 10
           done
           
-          # Comprehensive failure debugging
-          echo "❌ Application failed to start. Debug info:"
-          echo "=== Setup Log ==="
-          tail -50 /var/log/setup.log
-          echo "=== Streamlit Log ==="
-          tail -50 /var/log/streamlit.log
-          echo "=== Process Status ==="
-          ps aux | grep -E "streamlit|python"
-          echo "=== Port Status ==="
-          netstat -tlnp | grep -E ":8501|:80"
-          echo "=== Directory Contents ==="
-          ls -la /home/ec2-user/app/
-          echo "=== Python Path ==="
-          python3 -c "import sys; print('\n'.join(sys.path))"
-          
+          echo "❌ APPLICATION FAILED TO START"
+          echo "Streamlit log:"
+          tail -20 /var/log/streamlit.log
+          echo "Process status:"
+          ps aux | grep streamlit
           /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource Instance --region ${AWS::Region}
     CreationPolicy:
       ResourceSignal:
         Count: 1
-        Timeout: PT10M
+        Timeout: PT15M
 
 Outputs:
   ApplicationURL:
