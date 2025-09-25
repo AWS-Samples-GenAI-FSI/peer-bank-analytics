@@ -54,13 +54,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
   
-  MyIP:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub '/${AWS::StackName}/MyIP'
-      Type: String
-      Value: !GetAtt GetMyIP.IP
-  
+
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -69,11 +63,11 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp: !Sub '${MyIP}/32'
+          CidrIp: !Sub '${GetMyIP.IP}/32'
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: !Sub '${MyIP}/32'
+          CidrIp: !Sub '${GetMyIP.IP}/32'
 
   EC2Role:
     Type: AWS::IAM::Role
