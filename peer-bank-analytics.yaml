@@ -118,7 +118,7 @@ Resources:
           # Install all requirements with compatibility fixes
           echo "Installing all application requirements..."
           pip3 install --upgrade pip
-          pip3 install streamlit==1.35.0 pandas matplotlib plotly configparser pillow numpy
+          pip3 install streamlit==1.50.0 pandas matplotlib plotly configparser pillow numpy
           pip3 install langchain==0.2.1 langchain-community==0.2.1 langchain-core==0.2.2 langchain-text-splitters==0.2.0
           pip3 install llama-index==0.10.40 llama-index-llms-bedrock==0.1.8 llama-index-embeddings-bedrock==0.2.0
           pip3 install unstructured==0.14.3 PyPDF2==3.0.1 reportlab anthropic==0.23.1
