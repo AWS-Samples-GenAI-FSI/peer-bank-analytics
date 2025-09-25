@@ -38,7 +38,7 @@ def check_auth():
         if st.button("Login"):
             if username == "awsuser" and password == "Password123$":
                 st.session_state.authenticated = True
-                st.rerun()
+                st.experimental_rerun()
             else:
                 st.error("Invalid credentials")
         
@@ -326,7 +326,7 @@ st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(
 with st.sidebar:
     if st.button("🚪 Logout", key="logout_button_unique"):
         st.session_state.authenticated = False
-        st.rerun()
+        st.experimental_rerun()
 
 # Footer note
         st.markdown('</div>', unsafe_allow_html=True)  # Close login container

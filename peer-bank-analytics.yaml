@@ -111,9 +111,9 @@ Resources:
           cd /home/ec2-user/app
           chown -R ec2-user:ec2-user /home/ec2-user/app
           
-          # Install basic Python packages
+          # Install compatible Python packages for older systems
           echo "Installing Python packages..."
-          pip3 install streamlit boto3 pandas plotly requests configparser pillow
+          pip3 install "urllib3<2.0" "requests<2.29" "boto3<1.26" streamlit pandas plotly configparser pillow
           
           # Create Streamlit config
           mkdir -p .streamlit
