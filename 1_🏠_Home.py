@@ -16,31 +16,83 @@ def check_auth():
         st.session_state.authenticated = False
     
     if not st.session_state.authenticated:
-        # Modern login container
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        
-        # Modern title with emoji and styling
+        # Elegant login container with glassmorphism effect
         st.markdown("""
-        <div style="text-align: center; margin-bottom: 2rem;">
-            <h1 style="color: #667eea; font-size: 2.5rem; margin-bottom: 0.5rem; font-weight: 700;">
-                🏦 BankIQ+
-            </h1>
-            <p style="color: #666; font-size: 1.1rem; margin: 0;">
-                Advanced Banking Analytics Platform
-            </p>
+        <div style="
+            max-width: 400px;
+            margin: 5rem auto;
+            padding: 3rem 2rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(160, 32, 240, 0.1);
+            border: 1px solid rgba(160, 32, 240, 0.1);
+        ">
+            <div style="text-align: center; margin-bottom: 2.5rem;">
+                <div style="
+                    width: 80px;
+                    height: 80px;
+                    background: linear-gradient(135deg, #A020F0, #8B1A9B);
+                    border-radius: 50%;
+                    margin: 0 auto 1rem;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 2rem;
+                ">
+                    🏦
+                </div>
+                <h1 style="
+                    color: #A020F0;
+                    font-size: 2rem;
+                    margin: 0 0 0.5rem 0;
+                    font-weight: 600;
+                    font-family: 'Inter', sans-serif;
+                ">
+                    BankIQ+
+                </h1>
+                <p style="
+                    color: #666;
+                    font-size: 1rem;
+                    margin: 0;
+                    font-family: 'Inter', sans-serif;
+                ">
+                    Advanced Banking Analytics
+                </p>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-
         
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
+        # Create centered columns for form
+        col1, col2, col3 = st.columns([1, 2, 1])
         
-        if st.button("Login"):
-            if username == "awsuser" and password == "Password123$":
-                st.session_state.authenticated = True
-                st.experimental_rerun()
-            else:
-                st.error("Invalid credentials")
+        with col2:
+            st.markdown('<div style="margin-top: -2rem;">', unsafe_allow_html=True)
+            
+            username = st.text_input(
+                "Username",
+                placeholder="Enter your username",
+                label_visibility="collapsed"
+            )
+            
+            password = st.text_input(
+                "Password",
+                type="password",
+                placeholder="Enter your password",
+                label_visibility="collapsed"
+            )
+            
+            st.markdown('<div style="margin: 1.5rem 0;">', unsafe_allow_html=True)
+            
+            if st.button("Sign In", use_container_width=True):
+                if username == "awsuser" and password == "Password123$":
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid credentials. Please try again.")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         
 
         return False
@@ -115,17 +167,21 @@ st.markdown(
         }
         
         /* Style login input boxes */
-        .stTextInput > div > div > input,
-        .stTextInput > div > div > input:hover,
-        .stTextInput > div > div > input:focus,
-        .stTextInput > div > div > input:active {
-            border: 2px solid #667eea !important;
+        .stTextInput > div > div > input {
+            border: 2px solid #E5E7EB !important;
             border-radius: 12px !important;
-            padding: 16px !important;
+            padding: 16px 20px !important;
             font-family: 'Inter', sans-serif !important;
             background-color: #ffffff !important;
             outline: none !important;
-            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1) !important;
+            font-size: 16px !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .stTextInput > div > div > input:focus {
+            border-color: #A020F0 !important;
+            box-shadow: 0 0 0 3px rgba(160, 32, 240, 0.1) !important;
+            transform: translateY(-1px) !important;
         }
         
         .stDeployButton {
@@ -233,22 +289,22 @@ st.markdown(
         
         /* Enhanced button styling */
         .stButton > button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            background: linear-gradient(135deg, #A020F0 0%, #8B1A9B 100%) !important;
             color: white !important;
             border: none !important;
-            padding: 18px 32px !important;
+            padding: 16px 32px !important;
             border-radius: 12px !important;
-            font-weight: 700 !important;
-            font-size: 20px !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
             transition: all 0.3s ease !important;
             width: 100% !important;
-            text-transform: uppercase !important;
-            letter-spacing: 1px !important;
+            letter-spacing: 0.5px !important;
         }
         
         .stButton > button:hover {
             transform: translateY(-2px) !important;
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3) !important;
+            box-shadow: 0 15px 30px rgba(160, 32, 240, 0.4) !important;
+            background: linear-gradient(135deg, #8B1A9B 0%, #6A1B9A 100%) !important;
         }
         
         /* Re-enable pointer events for sidebar content */
@@ -326,7 +382,7 @@ st.markdown('<div style="width: 100vw; height: 4px; background: linear-gradient(
 with st.sidebar:
     if st.button("🚪 Logout", key="logout_button_unique"):
         st.session_state.authenticated = False
-        st.experimental_rerun()
+        st.rerun()
 
 # Footer note
         st.markdown('</div>', unsafe_allow_html=True)  # Close login container

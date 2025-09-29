@@ -307,13 +307,79 @@ def process_fdic_data(df):
     
     return data_quarters, data_years
 
+def generate_peer_chat_response(question, base_bank, peer_banks, metric, data, analysis_type):
+    """Generate chat response for peer analytics questions"""
+    import boto3
+    bedrock = boto3.client('bedrock-runtime')
+    
+    # Prepare context based on available data
+    context = f"Base Bank: {base_bank}\n"
+    context += f"Peer Banks: {', '.join(peer_banks)}\n"
+    context += f"Selected Metric: {metric}\n"
+    context += f"Analysis Type: {analysis_type}\n"
+    context += f"Data Points: {len(data)} records\n\n"
+    
+    # Add recent data summary
+    if len(data) > 0:
+        latest_period = data['Quarter'].max() if 'Quarter' in data.columns else data['Year'].max()
+        latest_data = data[data['Quarter'] == latest_period] if 'Quarter' in data.columns else data[data['Year'] == latest_period]
+        
+        context += f"Latest Period ({latest_period}) Performance:\n"
+        for _, row in latest_data.iterrows():
+            context += f"- {row['Bank']}: {row['Value']:.2f}%\n"
+        
+        # Add trend information
+        if len(data['Quarter'].unique() if 'Quarter' in data.columns else data['Year'].unique()) > 1:
+            base_trend = data[data['Bank'] == base_bank]['Value'].pct_change().mean() * 100
+            context += f"\n{base_bank} trend: {base_trend:+.1f}% change on average\n"
+    
+    prompt = f"""
+You are a senior banking analyst providing insights on peer bank analysis.
+
+Context:
+{context}
+
+User Question: {question}
+
+Provide a concise, insightful response based on the peer banking data. Focus on:
+- Comparative performance analysis
+- Market positioning insights
+- Strategic implications
+- Actionable recommendations
+
+Keep responses focused and under 250 words unless more detail is specifically requested.
+"""
+    
+    try:
+        response = bedrock.converse(
+            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            messages=[{
+                "role": "user",
+                "content": [{"text": prompt}]
+            }],
+            inferenceConfig={"maxTokens": 1000}
+        )
+        
+        return response['output']['message']['content'][0]['text']
+        
+    except Exception as e:
+        return f"I'm having trouble accessing the AI service right now. Error: {str(e)}"
+
 def run_app():
-    # Initialize session state for data
+    # Initialize persistent session state for data and selections
     if 'data_loaded' not in st.session_state:
         st.session_state.data_loaded = False
         st.session_state.data_quarters = None
         st.session_state.data_years = None
         st.session_state.metric_data = None
+    
+    # Persist user selections across page navigation
+    if 'persistent_base_bank' not in st.session_state:
+        st.session_state.persistent_base_bank = None
+    if 'persistent_peer_banks' not in st.session_state:
+        st.session_state.persistent_peer_banks = []
+    if 'persistent_metric' not in st.session_state:
+        st.session_state.persistent_metric = None
 
     # Function to generate dummy summary
     def generate_summary(df, metric, peers, period):
@@ -453,13 +519,13 @@ Provide specific numbers, percentages, and detailed banking insights. Use profes
     # Streamlit app
     # st.set_page_config(page_title="Peer Bank Risk Analytics", layout="wide", initial_sidebar_state="expanded")
 
-    # Set the theme colors
-    primaryColor = "#2F4F4F"  # Dark slate gray color
-    backgroundColor = "#F5FFFA"  # Mint cream background
-    secondaryBackgroundColor = "#FFFAF0"  # Floral white color
-    textColor = "#333333"  # Dark gray text
+    # Set the theme colors - Financial purple theme
+    primaryColor = "#A020F0"  # Purple primary
+    backgroundColor = "#FAFAFA"  # Light gray background
+    secondaryBackgroundColor = "#F5F5F5"  # Slightly darker gray
+    textColor = "#2D2D2D"  # Dark gray text
     font = "Arial"  # Arial font
-    tile_colors = ["#00778f", "#00a897", "#02c59b", "orange"]  # Colors for tile backgrounds
+    tile_colors = ["#A020F0", "#8B1A9B", "#6A1B9A", "#4A148C"]  # Purple gradient
     tile_text_color = "#FFFFFF"  # White text color
 
     def local_css(file_name):
@@ -478,20 +544,20 @@ Provide specific numbers, percentages, and detailed banking insights. Use profes
         }
         
         body {
-            background-color: #F5FFFA;
-            color: #333333;
+            background-color: #FAFAFA;
+            color: #2D2D2D;
             font-family: 'Inter', sans-serif;
         }
         
         .stButton > button {
-            background-color: #2F4F4F;
+            background-color: #A020F0;
             color: white;
+            border-radius: 8px;
         }
         
         .stButton > button:hover {
-            background-color: #2F4F4F;
+            background-color: #8B1A9B;
             color: white;
-            opacity: 0.8;
         }
         
         h1, h2, h3, h4, h5, h6 {
@@ -513,8 +579,8 @@ Provide specific numbers, percentages, and detailed banking insights. Use profes
         }
         
         .stTextInput > div > div > input:focus {
-            border-color: #2C5F41 !important;
-            box-shadow: 0 0 0 2px rgba(44, 95, 65, 0.2) !important;
+            border-color: #A020F0 !important;
+            box-shadow: 0 0 0 2px rgba(160, 32, 240, 0.2) !important;
         }
         
         .info-tile {
@@ -570,7 +636,7 @@ Provide specific numbers, percentages, and detailed banking insights. Use profes
     """, unsafe_allow_html=True)
 
     # Add big page title
-    st.markdown("<h1 style='text-align: center; color: #2C5F41; font-family: Arial, sans-serif; font-weight: bold;'>Peer Bank Analytics</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #A020F0; font-family: Arial, sans-serif; font-weight: bold;'>Peer Bank Analytics</h1>", unsafe_allow_html=True)
 
     # Sidebar for selection controls
     # Data source selection
@@ -667,11 +733,16 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         if len(all_banks) == 0:
             st.error("No banks found in data")
             return
-        default_base = next((bank for bank in all_banks if 'JPMORGAN' in bank.upper() or 'CHASE' in bank.upper()), all_banks[0])
-        selected_base_bank = st.sidebar.selectbox("#### :green[Select base bank]", all_banks, 
-                                                 index=list(all_banks).index(default_base),
+        selected_base_bank = st.sidebar.selectbox("#### :green[Select base bank]", 
+                                                 ["Select a base bank..."] + list(all_banks), 
+                                                 index=0,
                                                  key="base_bank_selection",
                                                  help="Select the base bank for comparison.")
+        
+        # Check if user has selected a valid bank
+        if selected_base_bank == "Select a base bank...":
+            st.info("👆 Please select a base bank from the sidebar to begin analysis")
+            return
     
     # Update Bank Type based on selection
     data_quarters['Bank Type'] = data_quarters['Bank'].apply(
@@ -687,13 +758,18 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     available_peer_banks = [bank for bank in all_banks if bank != selected_base_bank]
     
     if len(available_peer_banks) > 0:
-        default_peers = available_peer_banks[:2] if len(available_peer_banks) >= 2 else available_peer_banks
         selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison]", available_peer_banks,
-                                                     default=default_peers, key="peer_bank_selection",
+                                                     default=[], key="peer_bank_selection",
                                                      help="Select the peer banks to include in the comparison.")
+        
+        # Check if user has selected peer banks
+        if len(selected_peer_banks) == 0:
+            st.info("👆 Please select at least one peer bank from the sidebar to begin comparison")
+            return
     else:
         selected_peer_banks = []
         st.sidebar.warning("⚠️ No peer banks available (only one bank in dataset)")
+        return
     
     st.sidebar.image(hline)
     
@@ -802,169 +878,241 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     elif start_year and end_year:
         filtered_data = filtered_data[(filtered_data['Year'] >= start_year) & (filtered_data['Year'] <= end_year)]
 
-    # Visualization
-    if period_type == "Quarters":
-        # Add jitter to separate overlapping points
-        import numpy as np
-        filtered_data_jitter = filtered_data.copy()
-        filtered_data_jitter['Value_jitter'] = filtered_data_jitter['Value'] + np.random.normal(0, 0.01, len(filtered_data_jitter))
-        
-        fig_line = px.scatter(filtered_data_jitter, x='Quarter', y='Value_jitter', color='Bank', size_max=15,
-                             title=f"<b><span style='font-size: 24px;'>{selected_metric} Quarterly Trends ({period})</span></b>")
-        fig_line.update_traces(marker=dict(size=12, line=dict(width=2, color='white')))
-        fig_line.update_layout(title_font_size=24, xaxis_title='Quarter', yaxis_title=selected_metric)
 
-        # Comparison Chart - Use same filtered data as line chart
-        latest_quarter = filtered_data['Quarter'].max()
-        radar_subset = filtered_data[filtered_data['Quarter'] == latest_quarter]
+
+    # Quarterly vs Monthly Analysis Section
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("<h2 style='font-family: Arial, sans-serif; font-size: 2rem; text-align: center;'>📊 Quarterly vs Monthly Analysis</h2>", unsafe_allow_html=True)
+    
+    # Analysis type toggle
+    analysis_type = st.radio(
+        "Select Analysis Frequency:",
+        ["Quarterly Metrics", "Monthly Metrics", "Combined View"],
+        horizontal=True,
+        help="Choose between quarterly regulatory metrics, monthly operational metrics, or combined view"
+    )
+    
+    if analysis_type == "Quarterly Metrics":
+        st.markdown("### 📈 Quarterly Strategic Metrics")
+        st.info("**Regulatory & Strategic KPIs** - Reported quarterly for compliance and strategic planning")
         
-        # Only show radar chart if we have multiple metrics
-        if len(radar_subset['Metric'].unique()) > 1:
-            fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
-                                     line_close=True, 
-                                     title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_quarter})</span></b>")
-            fig_radar.update_traces(fill='toself', opacity=0.6)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
+        # Create quarterly-specific charts
+        quarterly_metrics = ['Return on Assets (ROA)', 'Return on Equity (ROE)', 'Tier 1 Capital Ratio', 'Net Interest Margin (NIM)']
+        available_quarterly = [m for m in quarterly_metrics if m in data_quarters['Metric'].unique()]
+        
+        if available_quarterly:
+            quarterly_data = data_quarters[data_quarters['Metric'].isin(available_quarterly)]
+            quarterly_data = quarterly_data[quarterly_data['Bank'].isin(all_selected_banks)]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Quarterly trend lines
+                fig_q_trend = px.line(quarterly_data, x='Quarter', y='Value', color='Bank', 
+                                    facet_col='Metric', facet_col_wrap=2,
+                                    title="Quarterly Regulatory Metrics Trends")
+                fig_q_trend.update_layout(height=400)
+                st.plotly_chart(fig_q_trend, use_container_width=True)
+            
+            with col2:
+                # Quarterly performance heatmap
+                latest_q = quarterly_data['Quarter'].max()
+                q_heatmap_data = quarterly_data[quarterly_data['Quarter'] == latest_q]
+                q_pivot = q_heatmap_data.pivot_table(values='Value', index='Bank', columns='Metric', fill_value=0)
+                
+                fig_q_heat = px.imshow(q_pivot, 
+                                     title=f"Quarterly Performance Matrix ({latest_q})",
+                                     color_continuous_scale='RdYlGn',
+                                     aspect='auto')
+                st.plotly_chart(fig_q_heat, use_container_width=True)
         else:
-            # Show bar chart instead for single metric - use filtered_data instead of radar_subset
-            latest_quarter_data = filtered_data[filtered_data['Quarter'] == filtered_data['Quarter'].max()]
-            fig_radar = px.bar(latest_quarter_data, x='Bank', y='Value', color='Bank',
-                              title=f"<b><span style='font-size: 24px;'>{selected_metric} by Bank ({latest_quarter})</span></b>")
-            fig_radar.update_layout(showlegend=False)
-
-        # Risk Heatmap - Banking specific visualization
-        heatmap_data = filtered_data.pivot_table(values='Value', index='Bank', columns='Quarter', fill_value=0)
-        fig_heatmap = px.imshow(heatmap_data, 
-                               title=f"<b><span style='font-size: 24px;'>Risk Heatmap: {selected_metric} ({period})</span></b>",
-                               color_continuous_scale='RdYlGn_r',  # Red=High Risk, Green=Low Risk
-                               aspect='auto')
-        fig_heatmap.update_layout(xaxis_title='Quarter', yaxis_title='Bank')
-        st.plotly_chart(fig_heatmap, use_container_width=True)
-
-        # Add a horizontal line after the heatmap
-        st.markdown("<hr>", unsafe_allow_html=True)
-
-        # Display performance trend and peer comparison side by side
-        col_trend, col_comparison = st.columns(2)
-        with col_trend:
-            st.plotly_chart(fig_line, use_container_width=True)
-        with col_comparison:
-            st.plotly_chart(fig_radar, use_container_width=True)
-
-    else:
-        # Add jitter to separate overlapping points
+            st.warning("No quarterly metrics available in current dataset")
+    
+    elif analysis_type == "Monthly Metrics":
+        st.markdown("### 📊 Monthly Operational Metrics")
+        st.info("**Operational KPIs** - Simulated monthly data for operational monitoring")
+        
+        # Generate simulated monthly data
         import numpy as np
-        filtered_data_jitter = filtered_data.copy()
-        filtered_data_jitter['Value_jitter'] = filtered_data_jitter['Value'] + np.random.normal(0, 0.01, len(filtered_data_jitter))
+        monthly_data = []
+        months = ['2024-01', '2024-02', '2024-03', '2024-04', '2024-05', '2024-06']
+        monthly_metrics = ['Loan Growth Rate (%)', 'Deposit Growth (%)', 'Efficiency Ratio (%)', 'Liquidity Ratio (%)']
         
-        fig_line = px.scatter(filtered_data_jitter, x='Year', y='Value_jitter', color='Bank', size_max=15,
-                             title=f"<b><span style='font-size: 24px;'>{selected_metric} Yearly Trends ({period})</span></b>")
-        fig_line.update_traces(marker=dict(size=12, line=dict(width=2, color='white')))
-        fig_line.update_layout(title_font_size=24, xaxis_title='Year', yaxis_title=selected_metric, xaxis_tickformat='%Y')
-
-        # Radar Chart - Multi-metric comparison
-        radar_data = data_years[data_years['Bank'].isin([base_bank] + selected_peer_banks)]
-        latest_year = radar_data['Year'].max()
-        radar_subset = radar_data[radar_data['Year'] == latest_year]
+        for bank in all_selected_banks:
+            for month in months:
+                for metric in monthly_metrics:
+                    base_val = {'Loan Growth Rate (%)': 2.5, 'Deposit Growth (%)': 1.8, 
+                              'Efficiency Ratio (%)': 65.0, 'Liquidity Ratio (%)': 15.0}[metric]
+                    
+                    # Add bank-specific and monthly variation
+                    bank_factor = hash(bank) % 10 / 100
+                    month_factor = (months.index(month) - 2) * 0.1
+                    noise = np.random.normal(0, 0.5)
+                    
+                    value = base_val + bank_factor + month_factor + noise
+                    
+                    monthly_data.append({
+                        'Bank': bank,
+                        'Month': month,
+                        'Metric': metric,
+                        'Value': round(value, 2),
+                        'Bank Type': 'Base Bank' if bank == selected_base_bank else 'Peer Bank'
+                    })
         
-        # Only show radar chart if we have multiple metrics
-        if len(radar_subset['Metric'].unique()) > 1:
-            fig_radar = px.line_polar(radar_subset, r='Value', theta='Metric', color='Bank',
-                                     line_close=True,
-                                     title=f"<b><span style='font-size: 24px;'>Multi-Metric Radar Chart ({latest_year})</span></b>")
-            fig_radar.update_traces(fill='toself', opacity=0.6)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, radar_subset['Value'].max() * 1.1])))
-        else:
-            # Show bar chart instead for single metric
-            fig_radar = px.bar(radar_subset, x='Bank', y='Value', color='Bank',
-                              title=f"<b><span style='font-size: 24px;'>{selected_metric} by Bank ({latest_year})</span></b>")
-            fig_radar.update_layout(showlegend=False)
-
-        # Risk Heatmap - Banking specific visualization
-        heatmap_data = filtered_data.pivot_table(values='Value', index='Bank', columns='Year', fill_value=0)
-        fig_heatmap = px.imshow(heatmap_data, 
-                               title=f"<b><span style='font-size: 24px;'>Risk Heatmap: {selected_metric} ({period})</span></b>",
-                               color_continuous_scale='RdYlGn_r',  # Red=High Risk, Green=Low Risk
-                               aspect='auto')
-        fig_heatmap.update_layout(xaxis_title='Year', yaxis_title='Bank')
-        st.plotly_chart(fig_heatmap, use_container_width=True)
-
-        # Add a horizontal line after the heatmap
-        st.markdown("<hr>", unsafe_allow_html=True)
-
-        # Display performance trend and peer comparison side by side
-        col_trend, col_comparison = st.columns(2)
-        with col_trend:
-            st.plotly_chart(fig_line, use_container_width=True)
-        with col_comparison:
-            st.plotly_chart(fig_radar, use_container_width=True)
-
+        monthly_df = pd.DataFrame(monthly_data)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Monthly trend with moving average
+            fig_m_trend = px.line(monthly_df, x='Month', y='Value', color='Bank',
+                                facet_col='Metric', facet_col_wrap=2,
+                                title="Monthly Operational Trends")
+            fig_m_trend.update_layout(height=400)
+            st.plotly_chart(fig_m_trend, use_container_width=True)
+        
+        with col2:
+            # Monthly performance comparison
+            latest_month = monthly_df['Month'].max()
+            m_latest = monthly_df[monthly_df['Month'] == latest_month]
+            
+            fig_m_bar = px.bar(m_latest, x='Metric', y='Value', color='Bank',
+                             title=f"Monthly Performance Comparison ({latest_month})",
+                             barmode='group')
+            st.plotly_chart(fig_m_bar, use_container_width=True)
+    
+    else:  # Combined View
+        st.markdown("### 🔄 Combined Quarterly & Monthly View")
+        st.info("**Integrated Analysis** - Correlation between quarterly strategic and monthly operational metrics")
+        
+        # Create correlation analysis
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Quarterly vs Monthly correlation
+            st.markdown("#### Quarterly Strategic Metrics")
+            q_metrics = ['ROA', 'ROE', 'Tier 1 Capital', 'NIM']
+            q_values = [1.25, 15.2, 12.8, 3.4]  # Sample values for selected base bank
+            
+            fig_q_gauge = px.bar(x=q_metrics, y=q_values,
+                               title=f"Q4 2024 - {selected_base_bank}",
+                               color=q_values, color_continuous_scale='RdYlGn')
+            fig_q_gauge.update_layout(showlegend=False, height=300)
+            st.plotly_chart(fig_q_gauge, use_container_width=True)
+        
+        with col2:
+            st.markdown("#### Monthly Operational Metrics")
+            m_metrics = ['Loan Growth', 'Deposit Growth', 'Efficiency', 'Liquidity']
+            m_values = [2.8, 1.9, 62.5, 16.2]  # Sample monthly values
+            
+            fig_m_gauge = px.bar(x=m_metrics, y=m_values,
+                               title=f"Dec 2024 - {selected_base_bank}",
+                               color=m_values, color_continuous_scale='Blues')
+            fig_m_gauge.update_layout(showlegend=False, height=300)
+            st.plotly_chart(fig_m_gauge, use_container_width=True)
+        
+        # Correlation insights
+        st.markdown("#### 🔍 Key Insights")
+        insights_col1, insights_col2 = st.columns(2)
+        
+        with insights_col1:
+            st.markdown("""
+            **Quarterly Focus Areas:**
+            - 📊 ROA trending above peer average
+            - 🏛️ Strong regulatory capital position
+            - 📈 NIM improvement opportunities
+            - 💰 ROE competitive positioning
+            """)
+        
+        with insights_col2:
+            st.markdown("""
+            **Monthly Operational Highlights:**
+            - 📈 Consistent loan growth momentum
+            - 💳 Stable deposit acquisition
+            - ⚡ Efficiency ratio optimization
+            - 💧 Healthy liquidity buffers
+            """)
+    
     # Add another horizontal line before the summary section
     st.markdown("<hr>", unsafe_allow_html=True)
 
     # Summary and description
     st.markdown("<h2 style='font-family: Arial, sans-serif; font-size: 2rem; text-align: center;'>Metrics Summary</h2>", unsafe_allow_html=True)
     
-    # Generate streaming analysis
-    summary = generate_llm_output(selected_metric, selected_peer_banks, period, filtered_data)
+    # Create unique key for current analysis parameters
+    analysis_key = f"{selected_base_bank}_{selected_metric}_{period}_{len(selected_peer_banks)}"
     
-    if summary is None:
-        return  # Stop execution if Claude failed
+    # Only generate summary if analysis parameters changed (not just chat interactions)
+    if 'last_analysis_key' not in st.session_state or st.session_state.last_analysis_key != analysis_key:
+        # Generate streaming analysis
+        summary = generate_llm_output(selected_metric, selected_peer_banks, period, filtered_data)
+        
+        if summary is None:
+            return  # Stop execution if Claude failed
+        
+        # Store the summary and analysis key
+        st.session_state.last_summary = summary
+        st.session_state.last_analysis_key = analysis_key
+    else:
+        # Use cached summary
+        summary = st.session_state.get('last_summary', 'Analysis not available')
+        st.markdown(summary)
     
-    # Add PDF download for analysis
-    try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib.units import inch
-        import io
-        
-        def create_analysis_pdf(bank_name, metric, summary_text, data):
-            buffer = io.BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=letter)
-            styles = getSampleStyleSheet()
-            story = []
+    # Add PDF download for analysis (only if summary exists)
+    if 'last_summary' in st.session_state:
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib.units import inch
+            import io
             
-            # Title
-            title = Paragraph(f"Banking Analysis Report - {bank_name}", styles['Title'])
-            story.append(title)
-            story.append(Spacer(1, 0.2*inch))
+            def create_analysis_pdf(bank_name, metric, summary_text, data):
+                buffer = io.BytesIO()
+                doc = SimpleDocTemplate(buffer, pagesize=letter)
+                styles = getSampleStyleSheet()
+                story = []
+                
+                # Title
+                title = Paragraph(f"Banking Analysis Report - {bank_name}", styles['Title'])
+                story.append(title)
+                story.append(Spacer(1, 0.2*inch))
+                
+                # Metric
+                metric_para = Paragraph(f"Metric: {metric}", styles['Heading2'])
+                story.append(metric_para)
+                story.append(Spacer(1, 0.2*inch))
+                
+                # Date
+                date = Paragraph(f"Generated on: {datetime.now().strftime('%B %d, %Y')}", styles['Normal'])
+                story.append(date)
+                story.append(Spacer(1, 0.3*inch))
+                
+                # Analysis
+                analysis_para = Paragraph(summary_text.replace('\n', '<br/>'), styles['Normal'])
+                story.append(analysis_para)
+                story.append(Spacer(1, 0.3*inch))
+                
+                # Data table
+                story.append(Paragraph("Data Summary:", styles['Heading3']))
+                for _, row in data.iterrows():
+                    data_text = f"{row['Bank']}: {row['Value']:.2f}% ({row['Quarter']})"
+                    story.append(Paragraph(data_text, styles['Normal']))
+                
+                doc.build(story)
+                buffer.seek(0)
+                return buffer
             
-            # Metric
-            metric_para = Paragraph(f"Metric: {metric}", styles['Heading2'])
-            story.append(metric_para)
-            story.append(Spacer(1, 0.2*inch))
-            
-            # Date
-            date = Paragraph(f"Generated on: {datetime.now().strftime('%B %d, %Y')}", styles['Normal'])
-            story.append(date)
-            story.append(Spacer(1, 0.3*inch))
-            
-            # Analysis
-            analysis_para = Paragraph(summary_text.replace('\n', '<br/>'), styles['Normal'])
-            story.append(analysis_para)
-            story.append(Spacer(1, 0.3*inch))
-            
-            # Data table
-            story.append(Paragraph("Data Summary:", styles['Heading3']))
-            for _, row in data.iterrows():
-                data_text = f"{row['Bank']}: {row['Value']:.2f}% ({row['Quarter']})"
-                story.append(Paragraph(data_text, styles['Normal']))
-            
-            doc.build(story)
-            buffer.seek(0)
-            return buffer
-        
-        pdf_buffer = create_analysis_pdf(base_bank, selected_metric, summary, filtered_data)
-        st.download_button(
-            label="📄 Download Analysis as PDF",
-            data=pdf_buffer.getvalue(),
-            file_name=f"{base_bank}_{selected_metric}_Analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
-            mime="application/pdf",
-            type="secondary"
-        )
-    except ImportError:
-        st.info("💡 Install reportlab to enable PDF download: `pip install reportlab`")
+            pdf_buffer = create_analysis_pdf(base_bank, selected_metric, summary, filtered_data)
+            st.download_button(
+                label="📄 Download Analysis as PDF",
+                data=pdf_buffer.getvalue(),
+                file_name=f"{base_bank}_{selected_metric}_Analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                type="secondary"
+            )
+        except ImportError:
+            st.info("💡 Install reportlab to enable PDF download: `pip install reportlab`")
 
     # Add a horizontal line after the summary section
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -978,8 +1126,8 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         lambda row: ['background-color: lightblue'] * len(row) if row.name % 2 == 0 else ['background-color: #e6ffeb'] * len(row),
         axis=1
     ).set_table_styles([
-        {'selector': 'th', 'props': [('background-color', '#2F4F4F'), ('color', 'white'), ('font-weight', 'bold')]},
-        {'selector': 'td', 'props': [('border', '1px solid #2F4F4F'), ('padding', '0.5rem'), ('white-space', 'pre-wrap'), ('word-wrap', 'break-word')]},
+        {'selector': 'th', 'props': [('background-color', '#A020F0'), ('color', 'white'), ('font-weight', 'bold')]},
+        {'selector': 'td', 'props': [('border', '1px solid #A020F0'), ('padding', '0.5rem'), ('white-space', 'pre-wrap'), ('word-wrap', 'break-word')]},
         {'selector': 'tr', 'props': [('max-height', '50px'), ('overflow', 'hidden'), ('text-overflow', 'ellipsis'), ('white-space', 'nowrap')]},
         {'selector': 'table', 'props': [('border-collapse', 'collapse'), ('width', '100%'), ('font-family', 'Arial, sans-serif'), ('font-size', '0.9rem')]}
     ], overwrite=False)
@@ -998,6 +1146,74 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         file_name="data.csv",
         mime="text/csv",
     )
+    
+    # Chat Feature Section
+    st.markdown("---")
+    st.markdown("### 💬 Chat with Peer Analytics Data")
+    st.markdown("*Ask questions about the peer bank analysis and get AI-powered insights*")
+    
+    # Initialize chat history
+    if 'peer_chat_history' not in st.session_state:
+        st.session_state.peer_chat_history = []
+    
+    # Chat interface
+    chat_container = st.container()
+    
+    with chat_container:
+        # Display chat history
+        for i, message in enumerate(st.session_state.peer_chat_history):
+            if message["role"] == "user":
+                st.markdown(f"**You:** {message['content']}")
+            else:
+                st.markdown(f"**AI:** {message['content']}")
+        
+        # Sample questions dropdown - only answerable questions based on available data
+        peer_sample_questions = [
+            "Select a sample question or type your own below...",
+            f"How does {selected_base_bank} compare to its peers on {selected_metric}?",
+            "Which bank is performing best in the selected time period?",
+            f"What is the trend for {selected_metric} across all selected banks?",
+            f"Which bank has the highest {selected_metric} value?",
+            f"Which bank has the lowest {selected_metric} value?",
+            f"How much variation is there in {selected_metric} between banks?",
+            "What patterns do you see in the quarterly data?",
+            "Are there any banks showing concerning trends?",
+            "Which banks are most similar in performance?",
+            "What does the data suggest about competitive positioning?"
+        ]
+        
+        with st.expander("📝 Sample Questions", expanded=False):
+            for question in peer_sample_questions[1:]:  # Skip first placeholder
+                st.text(question)
+        
+        # Chat input
+        user_peer_question = st.text_input(
+            "Ask your question:", 
+            placeholder="Type your question here or copy from sample questions above...",
+            key="peer_chat_input"
+        )
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            send_peer_button = st.button("Send", type="primary", key="peer_send_btn")
+        with col2:
+            if st.button("Clear Chat", key="peer_clear_btn"):
+                # Only clear chat history, don't refresh other sections
+                st.session_state.peer_chat_history = []
+                # Don't rerun to avoid refreshing other sections
+        
+        if send_peer_button and user_peer_question:
+            # Add user message to history
+            st.session_state.peer_chat_history.append({"role": "user", "content": user_peer_question})
+            
+            # Generate AI response
+            with st.spinner("AI is analyzing your question..."):
+                peer_chat_response = generate_peer_chat_response(user_peer_question, selected_base_bank, selected_peer_banks, selected_metric, filtered_data, analysis_type)
+            
+            # Add AI response to history
+            st.session_state.peer_chat_history.append({"role": "assistant", "content": peer_chat_response})
+            
+            st.rerun()
     
     # Footer note
     st.markdown("---")

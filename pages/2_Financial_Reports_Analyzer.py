@@ -10,7 +10,7 @@ from src.utils.sec_edgar import SECEdgarAPI
 
 # Check if user is authenticated - auto redirect to home
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.experimental_set_query_params(page="home")
+    st.query_params.page = "home"
     st.stop()
 
 
@@ -240,6 +240,64 @@ Provide specific numbers, dates, and detailed analysis. Use professional banking
                 st.error(f"❌ **Amazon Bedrock Error:** Unable to access Claude AI models. Please check your AWS credentials and Bedrock permissions. Error: {str(e2)}")
                 st.stop()
 
+def generate_chat_response(question, bank_name, reports_data, report_source):
+    """Generate chat response for user questions about financial data"""
+    bedrock = boto3.client('bedrock-runtime')
+    
+    # Prepare context based on available data
+    if report_source == "SEC EDGAR API":
+        context = f"Bank: {bank_name}\n"
+        context += f"Available SEC Filings: {len(reports_data.get('10-K', []))} 10-K reports, {len(reports_data.get('10-Q', []))} 10-Q reports\n"
+        
+        # Add recent filing info
+        if reports_data.get('10-K'):
+            context += "Recent 10-K filings:\n"
+            for filing in reports_data['10-K'][:2]:
+                context += f"- {filing.get('form', 'N/A')} filed {filing.get('filing_date', 'N/A')}\n"
+        
+        if reports_data.get('financial_facts'):
+            sec_api = SECEdgarAPI()
+            metrics = sec_api.extract_key_metrics(reports_data['financial_facts'])
+            if metrics:
+                context += "\nKey Financial Metrics:\n"
+                for key, value in list(metrics.items())[:5]:  # Limit to top 5 metrics
+                    context += f"- {key}: {value}\n"
+    else:
+        context = f"Bank: {bank_name}\n"
+        context += "Uploaded Reports Analysis:\n"
+        for filename, data in reports_data.get('uploaded_data', {}).items():
+            context += f"- {filename} ({data['type']}, {data['size']} bytes)\n"
+            # Add snippet of content for context
+            context += f"  Content preview: {data['content'][:300]}...\n"
+    
+    prompt = f"""
+You are a financial analyst assistant helping users understand banking data for {bank_name}.
+
+Available Data Context:
+{context}
+
+User Question: {question}
+
+Provide a concise, helpful response based on the available financial data. If the question requires specific data not available in the context, explain what information would be needed and suggest general insights about the topic.
+
+Keep responses focused and under 200 words unless more detail is specifically requested.
+"""
+    
+    try:
+        response = bedrock.converse(
+            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            messages=[{
+                "role": "user",
+                "content": [{"text": prompt}]
+            }],
+            inferenceConfig={"maxTokens": 1000}
+        )
+        
+        return response['output']['message']['content'][0]['text']
+        
+    except Exception as e:
+        return f"I apologize, but I'm having trouble accessing the AI service right now. Error: {str(e)}"
+
 # Removed simulated S3 loading function - now using real SEC API
 
 def run_app():
@@ -324,8 +382,8 @@ def run_app():
         }
         
         .stTextInput > div > div > input:focus {
-            border-color: #2C5F41 !important;
-            box-shadow: 0 0 0 2px rgba(44, 95, 65, 0.2) !important;
+            border-color: #A020F0 !important;
+            box-shadow: 0 0 0 2px rgba(160, 32, 240, 0.2) !important;
         }
         
         /* Make page and content full width */
@@ -358,7 +416,7 @@ def run_app():
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h1 style='text-align: center; color: #2C5F41; font-family: Arial, sans-serif; font-weight: bold;'>🏦 Banking Financial Analysis</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #A020F0; font-family: Arial, sans-serif; font-weight: bold;'>🏦 Banking Financial Analysis</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-family: Arial, sans-serif;'><strong>Real SEC Filing Analysis using Claude AI</strong></p>", unsafe_allow_html=True)
     
     # Initialize session state
@@ -489,80 +547,85 @@ def run_app():
         with col:
             if st.button(f"🏦 {display_name}", key=f"bank_{i}", use_container_width=True):
                 st.session_state.selected_bank = bank
-                st.experimental_rerun()
+                st.rerun()
     
-    # Auto-detect bank from uploaded document content if using Upload Reports
-    if report_source == "Upload Reports" and 'report_data' in locals() and report_data:
-        # Extract bank name from document content (first 1000 characters)
-        detected_bank = "Unknown Bank"
-        
-        for filename, data in report_data.items():
-            content = data['content'][:1000].upper()  # Check first 1000 chars
+    # Check if user has selected a bank
+    if not st.session_state.selected_bank:
+        # For uploaded reports, try auto-detection
+        if report_source == "Upload Reports" and 'report_data' in locals() and report_data:
+            # Extract bank name from document content (first 1000 characters)
+            detected_bank = "Unknown Bank"
             
-            # Look for bank names in document content
-            if "WEBSTER BANK" in content or "WEBSTER FINANCIAL" in content:
-                detected_bank = "Webster Bank"
-                break
-            elif "JPMORGAN CHASE" in content or "JP MORGAN" in content:
-                detected_bank = "JPMorgan Chase"
-                break
-            elif "BANK OF AMERICA" in content or "BOFA" in content:
-                detected_bank = "Bank of America"
-                break
-            elif "WELLS FARGO" in content:
-                detected_bank = "Wells Fargo"
-                break
-            elif "GOLDMAN SACHS" in content:
-                detected_bank = "Goldman Sachs"
-                break
-            elif "CITIGROUP" in content or "CITIBANK" in content:
-                detected_bank = "Citibank"
-                break
-            elif "U.S. BANK" in content or "US BANK" in content:
-                detected_bank = "U.S. Bank"
-                break
-            elif "PNC BANK" in content or "PNC FINANCIAL" in content:
-                detected_bank = "PNC Bank"
-                break
-            elif "TRUIST" in content or "BB&T" in content:
-                detected_bank = "Truist Bank"
-                break
-            elif "CAPITAL ONE" in content:
-                detected_bank = "Capital One"
-                break
-            elif "TD BANK" in content:
-                detected_bank = "TD Bank"
-                break
-            elif "NELNET" in content:
-                detected_bank = "Nelnet"
-                break
-        
-        # If no specific bank found, try to extract any company name from content
-        if detected_bank == "Unknown Bank":
-            import re
-            # Look for common patterns like "COMPANY NAME" or "Company, Inc."
-            patterns = [
-                r'([A-Z][A-Z\s&]+(?:BANK|FINANCIAL|CORP|CORPORATION|INC|COMPANY))',
-                r'([A-Z][A-Za-z\s&]+(?:Bank|Financial|Corp|Corporation|Inc|Company))',
-                r'([A-Z][A-Z\s]+)(?=\s+(?:ANNUAL|QUARTERLY|REPORT|10-K|10-Q))'
-            ]
+            for filename, data in report_data.items():
+                content = data['content'][:1000].upper()  # Check first 1000 chars
+                
+                # Look for bank names in document content
+                if "WEBSTER BANK" in content or "WEBSTER FINANCIAL" in content:
+                    detected_bank = "Webster Bank"
+                    break
+                elif "JPMORGAN CHASE" in content or "JP MORGAN" in content:
+                    detected_bank = "JPMorgan Chase"
+                    break
+                elif "BANK OF AMERICA" in content or "BOFA" in content:
+                    detected_bank = "Bank of America"
+                    break
+                elif "WELLS FARGO" in content:
+                    detected_bank = "Wells Fargo"
+                    break
+                elif "GOLDMAN SACHS" in content:
+                    detected_bank = "Goldman Sachs"
+                    break
+                elif "CITIGROUP" in content or "CITIBANK" in content:
+                    detected_bank = "Citibank"
+                    break
+                elif "U.S. BANK" in content or "US BANK" in content:
+                    detected_bank = "U.S. Bank"
+                    break
+                elif "PNC BANK" in content or "PNC FINANCIAL" in content:
+                    detected_bank = "PNC Bank"
+                    break
+                elif "TRUIST" in content or "BB&T" in content:
+                    detected_bank = "Truist Bank"
+                    break
+                elif "CAPITAL ONE" in content:
+                    detected_bank = "Capital One"
+                    break
+                elif "TD BANK" in content:
+                    detected_bank = "TD Bank"
+                    break
+                elif "NELNET" in content:
+                    detected_bank = "Nelnet"
+                    break
             
-            for pattern in patterns:
-                matches = re.findall(pattern, content[:2000])
-                if matches:
-                    # Take the first reasonable match
-                    candidate = matches[0].strip()
-                    if len(candidate) > 3 and len(candidate) < 50:
-                        detected_bank = candidate.title()
-                        break
-        
-        selected_bank = detected_bank
-        st.info(f"🎯 Auto-detected bank: **{selected_bank}** from document content")
-    else:
-        if not st.session_state.selected_bank:
+            # If no specific bank found, try to extract any company name from content
+            if detected_bank == "Unknown Bank":
+                import re
+                # Look for common patterns like "COMPANY NAME" or "Company, Inc."
+                patterns = [
+                    r'([A-Z][A-Z\s&]+(?:BANK|FINANCIAL|CORP|CORPORATION|INC|COMPANY))',
+                    r'([A-Z][A-Za-z\s&]+(?:Bank|Financial|Corp|Corporation|Inc|Company))',
+                    r'([A-Z][A-Z\s]+)(?=\s+(?:ANNUAL|QUARTERLY|REPORT|10-K|10-Q))'
+                ]
+                
+                for pattern in patterns:
+                    matches = re.findall(pattern, content[:2000])
+                    if matches:
+                        # Take the first reasonable match
+                        candidate = matches[0].strip()
+                        if len(candidate) > 3 and len(candidate) < 50:
+                            detected_bank = candidate.title()
+                            break
+            
+            selected_bank = detected_bank
+            st.info(f"🎯 Auto-detected bank: **{selected_bank}** from document content")
+        else:
             st.info("👆 Please select a bank above to begin analysis")
             return
+    else:
         selected_bank = st.session_state.selected_bank
+    
+    # Initialize variables for chat feature
+    reports = {"10-K": [], "10-Q": [], "uploaded_data": {}}
 
     # Show selected bank info
     st.markdown(f"## 🏦 {selected_bank} - Financial Analysis")
@@ -630,8 +693,13 @@ def run_app():
         else:
             st.metric("📁 Uploaded Files", len(reports.get("uploaded_data", {})))
 
-    # Analysis button
+    # Analysis button and caching
     analysis_label = f"🤖 Analyze {selected_bank} with Amazon Bedrock"
+    
+    # Create unique key for current analysis parameters
+    analysis_key = f"{selected_bank}_{report_source}_{selected_year}_{len(reports.get('10-K', []))}_{len(reports.get('10-Q', []))}"
+    
+    # Check if analysis button was clicked or if we have cached analysis
     if st.button(analysis_label, type="primary", use_container_width=True):
         with st.spinner(f"Amazon Bedrock is analyzing {selected_bank}'s financial reports..."):
             # Use same analysis method for both API and uploaded data
@@ -639,7 +707,23 @@ def run_app():
             if analysis is None:
                 return  # Stop execution if Claude failed
         
+        # Store the analysis and key
+        st.session_state.financial_analysis = analysis
+        st.session_state.financial_analysis_key = analysis_key
+        
         st.markdown(f"### 📊 Amazon Bedrock Analysis Results for {selected_bank}")
+    
+    # Display cached analysis if available and parameters haven't changed
+    elif ('financial_analysis' in st.session_state and 
+          'financial_analysis_key' in st.session_state and 
+          st.session_state.financial_analysis_key == analysis_key):
+        
+        analysis = st.session_state.financial_analysis
+        st.markdown(f"### 📊 Amazon Bedrock Analysis Results for {selected_bank}")
+        st.markdown(analysis)
+    
+    # Only show PDF download and sources if analysis exists
+    if 'financial_analysis' in st.session_state and st.session_state.get('financial_analysis_key') == analysis_key:
         
         # Add PDF download button
         try:
@@ -716,7 +800,7 @@ def run_app():
         except ImportError:
             st.info("💡 Install reportlab to enable PDF download: `pip install reportlab`")
         
-        # Analysis already displayed via streaming - no need to display again
+        analysis = st.session_state.financial_analysis
         
         # Show report sources based on source type - minimal spacing
         st.markdown("<br>", unsafe_allow_html=True)
@@ -754,6 +838,74 @@ def run_app():
                     elif data['type'] == 'PDF':
                         st.write(f"• Content extracted: {len(data['content'])} characters")
         st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Chat Feature Section
+    st.markdown("---")
+    st.markdown("### 💬 Chat with Financial Data")
+    st.markdown("*Ask questions about the financial statements and get AI-powered insights*")
+    
+    # Initialize chat history
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    # Chat interface
+    chat_container = st.container()
+    
+    with chat_container:
+        # Display chat history
+        for i, message in enumerate(st.session_state.chat_history):
+            if message["role"] == "user":
+                st.markdown(f"**You:** {message['content']}")
+            else:
+                st.markdown(f"**AI:** {message['content']}")
+        
+        # Sample questions dropdown - only answerable questions
+        sample_questions = [
+            "Select a sample question or type your own below...",
+            "What are the key highlights from the SEC filings?",
+            "Summarize the main financial performance indicators",
+            "What business segments does this bank focus on?",
+            "What are the main risk factors mentioned in the reports?",
+            "How has the bank's financial position changed recently?",
+            "What strategic initiatives are mentioned in the filings?",
+            "What does the management discussion reveal about performance?",
+            "Are there any notable regulatory or compliance issues?",
+            "What geographic markets does this bank operate in?",
+            "What are the key takeaways from the latest quarterly report?"
+        ]
+        
+        with st.expander("📝 Sample Questions", expanded=False):
+            for question in sample_questions[1:]:  # Skip first placeholder
+                st.text(question)
+        
+        # Chat input
+        user_question = st.text_input(
+            "Ask your question:", 
+            placeholder="Type your question here or copy from sample questions above...",
+            key="chat_input"
+        )
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            send_button = st.button("Send", type="primary")
+        with col2:
+            if st.button("Clear Chat"):
+                # Only clear chat history, don't refresh other sections
+                st.session_state.chat_history = []
+                # Don't rerun to avoid refreshing other sections
+        
+        if send_button and user_question:
+            # Add user message to history
+            st.session_state.chat_history.append({"role": "user", "content": user_question})
+            
+            # Generate AI response
+            with st.spinner("AI is analyzing your question..."):
+                chat_response = generate_chat_response(user_question, selected_bank, reports, report_source)
+            
+            # Add AI response to history
+            st.session_state.chat_history.append({"role": "assistant", "content": chat_response})
+            
+            st.rerun()
     
     # Footer note
     st.markdown("---")
