@@ -158,9 +158,12 @@ streamlit run 1_🏠_Home.py
 ## Architecture Highlights
 - **Real-Time FDIC Integration**: Automatically fetches live banking data from official FDIC APIs
 - **Context-Aware AI**: Claude AI provides intelligent analysis of banking performance metrics
+- **Interactive Chat System**: Natural language queries with contextual banking insights
 - **Interactive Visualizations**: Plotly-powered charts with line graphs, bar charts, and heatmaps
 - **Multi-Bank Comparison**: Compare up to 10 major US banks simultaneously
 - **Historical Analysis**: Quarterly trend analysis from 2023-2024
+- **Modern UI Design**: Professional purple financial theme with enhanced user experience
+- **Smart Caching**: 1-hour data caching and session state management for optimal performance
 - **Zero Configuration**: Just add AWS credentials and run!
 
 ## Built with:
@@ -171,12 +174,15 @@ streamlit run 1_🏠_Home.py
 - **Python**: Core application development
 
 ## Key Features
+- **Interactive Chat Interface**: AI-powered chat on both analytics and reports pages with sample questions
 - **Real-Time Banking Data**: Direct integration with FDIC APIs for live financial metrics
 - **Streaming AI Analysis**: Real-time Claude AI responses with typing indicators
 - **SEC Filing Analysis**: Comprehensive 10-K/10-Q report analysis with year filtering
 - **Interactive Visualizations**: Dynamic charts showing trends, comparisons, and correlations
 - **Multi-Bank Comparison**: Analyze up to 10 major US banks simultaneously
 - **Historical Trends**: Quarterly analysis from 2023-2024
+- **Modern Financial UI**: Purple-themed interface with glassmorphism effects
+- **Performance Optimization**: Smart caching to prevent unnecessary API calls
 - **One-Click Deployment**: Zero-parameter CloudFormation template
 - **Enhanced Security**: Auto IP detection for secure access
 - **Export Capabilities**: Download analysis data and reports as PDF
