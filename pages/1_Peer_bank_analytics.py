@@ -178,10 +178,11 @@ def get_fdic_banking_data():
                             assets = float(bank_data.get('ASSET', 0)) if bank_data.get('ASSET') else 100000
                             deposits = float(bank_data.get('DEP', 0)) if bank_data.get('DEP') else 80000
                             
-                            # Add realistic quarterly variation
+                            # Add realistic quarterly variation with unique bank seed
                             quarter_index = quarters.index(quarter)
                             trend = (quarter_index - 4) * 0.05  # Slight trend over time
-                            variation = ((hash(bank_data.get('NAME', '') + quarter) % 100) / 1000)
+                            bank_seed = hash(bank_data.get('NAME', '') + str(banks_found)) % 1000
+                            variation = ((hash(bank_data.get('NAME', '') + quarter + str(bank_seed)) % 100) / 1000)
                             
                             metrics = [
                                 {"metric": "Return on Assets (ROA)", "value": roa + trend + variation},
@@ -208,14 +209,18 @@ def get_fdic_banking_data():
         if all_data:
             df = pd.DataFrame(all_data)
             
-            # Create metrics metadata
+            # Create metrics metadata - include both quarterly and monthly metrics
             metrics_data = pd.DataFrame([
-                {"Metric Name": "Return on Assets (ROA)", "Metric Description": "Net income as percentage of average assets"},
-                {"Metric Name": "Return on Equity (ROE)", "Metric Description": "Net income as percentage of average equity"},
-                {"Metric Name": "Net Interest Margin (NIM)", "Metric Description": "Difference between interest earned and paid as % of assets"},
-                {"Metric Name": "Tier 1 Capital Ratio", "Metric Description": "Core capital as percentage of risk-weighted assets"},
-                {"Metric Name": "Loan-to-Deposit Ratio (LDR)", "Metric Description": "Total loans as percentage of total deposits"},
-                {"Metric Name": "CRE Concentration Ratio (%)", "Metric Description": "Commercial real estate loans as percentage of total capital"}
+                {"Metric Name": "[Q] Return on Assets (ROA)", "Metric Description": "Net income as percentage of average assets"},
+                {"Metric Name": "[Q] Return on Equity (ROE)", "Metric Description": "Net income as percentage of average equity"},
+                {"Metric Name": "[Q] Net Interest Margin (NIM)", "Metric Description": "Difference between interest earned and paid as % of assets"},
+                {"Metric Name": "[Q] Tier 1 Capital Ratio", "Metric Description": "Core capital as percentage of risk-weighted assets"},
+                {"Metric Name": "[Q] Loan-to-Deposit Ratio (LDR)", "Metric Description": "Total loans as percentage of total deposits"},
+                {"Metric Name": "[Q] CRE Concentration Ratio (%)", "Metric Description": "Commercial real estate loans as percentage of total capital"},
+                {"Metric Name": "[M] Loan Growth Rate (%)", "Metric Description": "Monthly loan portfolio growth rate"},
+                {"Metric Name": "[M] Deposit Growth (%)", "Metric Description": "Monthly deposit growth rate"},
+                {"Metric Name": "[M] Efficiency Ratio (%)", "Metric Description": "Operating expenses as percentage of revenue"},
+                {"Metric Name": "[M] Charge-off Rate (%)", "Metric Description": "Monthly loan charge-off rate"}
             ])
             
             st.success("✅ **Live FDIC Data**: Using real banking metrics from official FDIC APIs.")
@@ -267,12 +272,16 @@ def create_sample_data():
     
     df = pd.DataFrame(data)
     metrics_data = pd.DataFrame([
-        {"Metric Name": "Return on Assets (ROA)", "Metric Description": "Net income as percentage of average assets"},
-        {"Metric Name": "Return on Equity (ROE)", "Metric Description": "Net income as percentage of average equity"},
-        {"Metric Name": "Net Interest Margin (NIM)", "Metric Description": "Difference between interest earned and paid as % of assets"},
-        {"Metric Name": "Tier 1 Capital Ratio", "Metric Description": "Core capital as percentage of risk-weighted assets"},
-        {"Metric Name": "Loan-to-Deposit Ratio (LDR)", "Metric Description": "Total loans as percentage of total deposits"},
-        {"Metric Name": "CRE Concentration Ratio (%)", "Metric Description": "Commercial real estate loans as percentage of total capital"}
+        {"Metric Name": "[Q] Return on Assets (ROA)", "Metric Description": "Net income as percentage of average assets"},
+        {"Metric Name": "[Q] Return on Equity (ROE)", "Metric Description": "Net income as percentage of average equity"},
+        {"Metric Name": "[Q] Net Interest Margin (NIM)", "Metric Description": "Difference between interest earned and paid as % of assets"},
+        {"Metric Name": "[Q] Tier 1 Capital Ratio", "Metric Description": "Core capital as percentage of risk-weighted assets"},
+        {"Metric Name": "[Q] Loan-to-Deposit Ratio (LDR)", "Metric Description": "Total loans as percentage of total deposits"},
+        {"Metric Name": "[Q] CRE Concentration Ratio (%)", "Metric Description": "Commercial real estate loans as percentage of total capital"},
+        {"Metric Name": "[M] Loan Growth Rate (%)", "Metric Description": "Monthly loan portfolio growth rate"},
+        {"Metric Name": "[M] Deposit Growth (%)", "Metric Description": "Monthly deposit growth rate"},
+        {"Metric Name": "[M] Efficiency Ratio (%)", "Metric Description": "Operating expenses as percentage of revenue"},
+        {"Metric Name": "[M] Charge-off Rate (%)", "Metric Description": "Monthly loan charge-off rate"}
     ])
     
     return df, metrics_data
@@ -307,63 +316,7 @@ def process_fdic_data(df):
     
     return data_quarters, data_years
 
-def generate_peer_chat_response(question, base_bank, peer_banks, metric, data, analysis_type):
-    """Generate chat response for peer analytics questions"""
-    import boto3
-    bedrock = boto3.client('bedrock-runtime')
-    
-    # Prepare context based on available data
-    context = f"Base Bank: {base_bank}\n"
-    context += f"Peer Banks: {', '.join(peer_banks)}\n"
-    context += f"Selected Metric: {metric}\n"
-    context += f"Analysis Type: {analysis_type}\n"
-    context += f"Data Points: {len(data)} records\n\n"
-    
-    # Add recent data summary
-    if len(data) > 0:
-        latest_period = data['Quarter'].max() if 'Quarter' in data.columns else data['Year'].max()
-        latest_data = data[data['Quarter'] == latest_period] if 'Quarter' in data.columns else data[data['Year'] == latest_period]
-        
-        context += f"Latest Period ({latest_period}) Performance:\n"
-        for _, row in latest_data.iterrows():
-            context += f"- {row['Bank']}: {row['Value']:.2f}%\n"
-        
-        # Add trend information
-        if len(data['Quarter'].unique() if 'Quarter' in data.columns else data['Year'].unique()) > 1:
-            base_trend = data[data['Bank'] == base_bank]['Value'].pct_change().mean() * 100
-            context += f"\n{base_bank} trend: {base_trend:+.1f}% change on average\n"
-    
-    prompt = f"""
-You are a senior banking analyst providing insights on peer bank analysis.
 
-Context:
-{context}
-
-User Question: {question}
-
-Provide a concise, insightful response based on the peer banking data. Focus on:
-- Comparative performance analysis
-- Market positioning insights
-- Strategic implications
-- Actionable recommendations
-
-Keep responses focused and under 250 words unless more detail is specifically requested.
-"""
-    
-    try:
-        response = bedrock.converse(
-            modelId="anthropic.claude-3-haiku-20240307-v1:0",
-            messages=[{
-                "role": "user",
-                "content": [{"text": prompt}]
-            }],
-            inferenceConfig={"maxTokens": 1000}
-        )
-        
-        return response['output']['message']['content'][0]['text']
-        
-    except Exception as e:
-        return f"I'm having trouble accessing the AI service right now. Error: {str(e)}"
 
 def run_app():
     # Initialize persistent session state for data and selections
@@ -397,7 +350,7 @@ def run_app():
         base_bank = filtered_data[filtered_data['Bank Type'] == 'Base Bank']['Bank'].iloc[0] if len(filtered_data[filtered_data['Bank Type'] == 'Base Bank']) > 0 else "JPMorgan Chase"
         
         prompt = f"""
-        As a seasoned banking analyst, analyze how {base_bank} (base bank) is performing on the metric "{metric}" 
+        Analyze how {base_bank} (base bank) is performing on the metric "{metric}" 
         against its peers {selected_peer_banks} across the period {period}.
         
         Here is the actual data:
@@ -420,7 +373,7 @@ def run_app():
             
             # Enhanced prompt for more thorough analysis
             enhanced_prompt = f"""
-As a senior banking analyst with 15+ years of experience, provide a comprehensive peer analysis of {base_bank} vs {selected_peer_banks} for the metric "{metric}" over {period}.
+Provide a comprehensive peer analysis of {base_bank} vs {selected_peer_banks} for the metric "{metric}" over {period}.
 
 ## ACTUAL BANKING DATA:
 {data_summary}
@@ -758,11 +711,15 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     available_peer_banks = [bank for bank in all_banks if bank != selected_base_bank]
     
     if len(available_peer_banks) > 0:
-        selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison]", available_peer_banks,
+        selected_peer_banks = st.sidebar.multiselect("#### :green[Select peer banks for comparison (max 3)]", available_peer_banks,
                                                      default=[], key="peer_bank_selection",
-                                                     help="Select the peer banks to include in the comparison.")
+                                                     help="Select up to 3 peer banks to include in the comparison.")
         
-        # Check if user has selected peer banks
+        # Limit to maximum 3 peer banks
+        if len(selected_peer_banks) > 3:
+            st.sidebar.warning("⚠️ Maximum 3 peer banks allowed. Using first 3 selected.")
+            selected_peer_banks = selected_peer_banks[:3]
+        
         if len(selected_peer_banks) == 0:
             st.info("👆 Please select at least one peer bank from the sidebar to begin comparison")
             return
@@ -773,10 +730,24 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     
     st.sidebar.image(hline)
     
-    # Metric selection
-    metrics = metric_data["Metric Name"].tolist()
-    selected_metric = st.sidebar.selectbox("#### :green[Select a metric]", metrics, key="metric_selection",
-                                           help="Select the metric to analyze.")
+    # Analysis type toggle - moved up to control metric selection
+    analysis_type = st.sidebar.radio(
+        "#### :green[Select Analysis View]",
+        ["Quarterly Metrics", "Monthly View"],
+        key="analysis_type_selection",
+        help="Choose between quarterly regulatory metrics or monthly operational metrics"
+    )
+    
+    # Metric selection based on analysis type
+    if analysis_type == "Quarterly Metrics":
+        quarterly_metrics = [m for m in metric_data["Metric Name"].tolist() if m.startswith("[Q]")]
+        selected_metric = st.sidebar.selectbox("#### :green[Select quarterly metric]", quarterly_metrics, key="metric_selection",
+                                               help="Select the quarterly metric to analyze.")
+    else:
+        monthly_metrics = [m for m in metric_data["Metric Name"].tolist() if m.startswith("[M]")]
+        selected_metric = st.sidebar.selectbox("#### :green[Select monthly metric]", monthly_metrics, key="metric_selection",
+                                               help="Select the monthly metric to analyze.")
+    
     selected_metric_description = metric_data.loc[metric_data["Metric Name"] == selected_metric, "Metric Description"].values[0]
     
     # Display tiles - using selected base bank
@@ -786,7 +757,7 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     peer_banks_years = data_years[data_years['Bank Type'] == 'Peer Bank']['Bank'].unique()
     num_peer_banks = len(peer_banks_quarters)
 
-    num_metrics = len(metrics)
+    num_metrics = len(metric_data["Metric Name"].tolist())
 
     col1, col2, col3 = st.columns(3)
 
@@ -825,18 +796,16 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         """, unsafe_allow_html=True)
 
     st.sidebar.image(hline)
-
-    # Time period selection - limit to Quarters for uploaded CSV
-    if data_source == "Upload CSV":
-        period_options = ["Quarters"]
-        st.sidebar.info("📊 Uploaded CSV data uses Quarters view only")
-    else:
-        period_options = ["Quarters", "Years"]
     
-    period_type = st.sidebar.radio("#### :green[Select time period type]", period_options, key="period_type_selection",
-                                   help="Choose whether to analyze data by quarters or years.")
+    # Submit button for processing - after all selections
+    submit_analysis = st.sidebar.button("🚀 Start Analysis", type="primary", use_container_width=True)
     
-    # Set data and period based on selection
+    # Check if user clicked submit
+    if not submit_analysis:
+        st.info("👆 Please select base bank, peer banks, metric and click 'Start Analysis' to begin comparison")
+        return
+    
+    # Use all available quarters (no period selection)
     if len(data_quarters) == 0 or 'Quarter' not in data_quarters.columns:
         st.sidebar.error("No valid data found. Please check your CSV format.")
         st.error("Data issue: Please ensure your CSV has 'Quarter' column with values like '2024-Q1'")
@@ -848,31 +817,22 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
         st.sidebar.error("No quarters found in Quarter column")
         st.error("Please check your CSV Quarter column has values like: 2024-Q1, 2024-Q2, etc.")
         return
-    elif len(quarters) == 1:
-        # Only one quarter, no slider needed
-        start_quarter = end_quarter = quarters[0]
-        st.sidebar.info(f"📅 Single quarter: {start_quarter}")
-        period = f"for {start_quarter}"
-    else:
-        # Multiple quarters, use slider
-        start_quarter, end_quarter = st.sidebar.select_slider("#### :green[Select period]", options=quarters,
-                                                               value=(quarters[0], quarters[-1]),
-                                                               key="quarter_period_selection",
-                                                               help="Select the range of quarters to analyze.")
-        period = f"from {start_quarter} to {end_quarter}"
+    
+    # Use all quarters
+    start_quarter, end_quarter = quarters[0], quarters[-1]
+    period = f"from {start_quarter} to {end_quarter}"
 
-    # Use the appropriate dataset for filtering
-    if period_type == "Quarters":
-        data = data_quarters.copy()
-    else:
-        data = data_years.copy()
+    # Use quarterly data (removed time period selection)
+    data = data_quarters.copy()
+    period_type = "Quarters"
     
     # Filter data based on selections
     base_bank = selected_base_bank
     all_selected_banks = [base_bank] + selected_peer_banks
     
     filtered_data = data[data['Bank'].isin(all_selected_banks)]
-    filtered_data = filtered_data[filtered_data['Metric'] == selected_metric]
+    clean_selected_metric = selected_metric.replace("[Q] ", "").replace("[M] ", "")
+    filtered_data = filtered_data[filtered_data["Metric"] == clean_selected_metric]
     if period_type == "Quarters":
         filtered_data = filtered_data[(filtered_data['Quarter'] >= start_quarter) & (filtered_data['Quarter'] <= end_quarter)]
     elif start_year and end_year:
@@ -880,158 +840,136 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
 
 
 
-    # Quarterly vs Monthly Analysis Section
-    st.markdown("<hr>", unsafe_allow_html=True)
-    st.markdown("<h2 style='font-family: Arial, sans-serif; font-size: 2rem; text-align: center;'>📊 Quarterly vs Monthly Analysis</h2>", unsafe_allow_html=True)
+    # Analysis type is now controlled from sidebar
     
-    # Analysis type toggle
-    analysis_type = st.radio(
-        "Select Analysis Frequency:",
-        ["Quarterly Metrics", "Monthly Metrics", "Combined View"],
-        horizontal=True,
-        help="Choose between quarterly regulatory metrics, monthly operational metrics, or combined view"
-    )
+    # Dynamic Analysis Section Title
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Set section title based on selected analysis type
+    if analysis_type == "Quarterly Metrics":
+        section_title = "📊 Quarterly Banking Analysis"
+    elif analysis_type == "Monthly View":
+        section_title = "📊 Monthly Banking Analysis"
+    else:  # Combined View
+        section_title = "📊 Combined Banking Analysis"
+    
+    st.markdown(f"<h2 style='font-family: Arial, sans-serif; font-size: 2rem; text-align: center;'>{section_title}</h2>", unsafe_allow_html=True)
     
     if analysis_type == "Quarterly Metrics":
-        st.markdown("### 📈 Quarterly Strategic Metrics")
+        st.markdown(f"### 📈 Quarterly Analysis: {selected_metric}")
         st.info("**Regulatory & Strategic KPIs** - Reported quarterly for compliance and strategic planning")
         
-        # Create quarterly-specific charts
-        quarterly_metrics = ['Return on Assets (ROA)', 'Return on Equity (ROE)', 'Tier 1 Capital Ratio', 'Net Interest Margin (NIM)']
-        available_quarterly = [m for m in quarterly_metrics if m in data_quarters['Metric'].unique()]
-        
-        if available_quarterly:
-            quarterly_data = data_quarters[data_quarters['Metric'].isin(available_quarterly)]
+        # Show only the selected quarterly metric
+        clean_metric = selected_metric.replace('[Q] ', '')
+        if clean_metric in data_quarters['Metric'].values:
+            quarterly_data = data_quarters[data_quarters['Metric'] == clean_metric]
             quarterly_data = quarterly_data[quarterly_data['Bank'].isin(all_selected_banks)]
             
-            col1, col2 = st.columns(2)
+
+            # Debug: Check which banks have data
+            banks_with_data = quarterly_data['Bank'].unique()
+            missing_banks = [bank for bank in all_selected_banks if bank not in banks_with_data]
             
-            with col1:
-                # Quarterly trend lines
-                fig_q_trend = px.line(quarterly_data, x='Quarter', y='Value', color='Bank', 
-                                    facet_col='Metric', facet_col_wrap=2,
-                                    title="Quarterly Regulatory Metrics Trends")
+            if missing_banks:
+                st.warning(f"⚠️ No data available for: {', '.join(missing_banks)} on metric '{clean_metric}'")
+            
+            if len(quarterly_data) > 0:
+                # Quarterly trend line for selected metric with bright colors
+                fig_q_trend = px.line(quarterly_data, x='Quarter', y='Value', color='Bank',
+                                    title=f"{analysis_type} - {clean_metric} Trends",
+                                    color_discrete_sequence=['#FF0000', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF', '#FFA500', '#800080'])
                 fig_q_trend.update_layout(height=400)
+                fig_q_trend.update_traces(line=dict(width=3))
                 st.plotly_chart(fig_q_trend, use_container_width=True)
-            
-            with col2:
-                # Quarterly performance heatmap
-                latest_q = quarterly_data['Quarter'].max()
-                q_heatmap_data = quarterly_data[quarterly_data['Quarter'] == latest_q]
-                q_pivot = q_heatmap_data.pivot_table(values='Value', index='Bank', columns='Metric', fill_value=0)
-                
-                fig_q_heat = px.imshow(q_pivot, 
-                                     title=f"Quarterly Performance Matrix ({latest_q})",
-                                     color_continuous_scale='RdYlGn',
-                                     aspect='auto')
-                st.plotly_chart(fig_q_heat, use_container_width=True)
+            else:
+                st.error("No data available for the selected banks and metric combination")
         else:
-            st.warning("No quarterly metrics available in current dataset")
+            st.warning(f"Selected metric '{clean_metric}' not available in quarterly data")
     
-    elif analysis_type == "Monthly Metrics":
+    elif analysis_type == "Monthly View":
         st.markdown("### 📊 Monthly Operational Metrics")
-        st.info("**Operational KPIs** - Simulated monthly data for operational monitoring")
+        st.info("**Monthly KPIs** - Real Federal Reserve data when available, enhanced simulations otherwise")
         
-        # Generate simulated monthly data
-        import numpy as np
-        monthly_data = []
-        months = ['2024-01', '2024-02', '2024-03', '2024-04', '2024-05', '2024-06']
-        monthly_metrics = ['Loan Growth Rate (%)', 'Deposit Growth (%)', 'Efficiency Ratio (%)', 'Liquidity Ratio (%)']
+        # Import the new FRED data provider
+        from src.utils.fred_api import get_real_monthly_data
         
-        for bank in all_selected_banks:
-            for month in months:
-                for metric in monthly_metrics:
-                    base_val = {'Loan Growth Rate (%)': 2.5, 'Deposit Growth (%)': 1.8, 
-                              'Efficiency Ratio (%)': 65.0, 'Liquidity Ratio (%)': 15.0}[metric]
-                    
-                    # Add bank-specific and monthly variation
-                    bank_factor = hash(bank) % 10 / 100
-                    month_factor = (months.index(month) - 2) * 0.1
-                    noise = np.random.normal(0, 0.5)
-                    
-                    value = base_val + bank_factor + month_factor + noise
-                    
-                    monthly_data.append({
-                        'Bank': bank,
-                        'Month': month,
-                        'Metric': metric,
-                        'Value': round(value, 2),
-                        'Bank Type': 'Base Bank' if bank == selected_base_bank else 'Peer Bank'
-                    })
+        # Get real or enhanced monthly data
+        with st.spinner("📊 Loading monthly banking data..."):
+            monthly_df = get_real_monthly_data(all_selected_banks)
         
-        monthly_df = pd.DataFrame(monthly_data)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Monthly trend with moving average
-            fig_m_trend = px.line(monthly_df, x='Month', y='Value', color='Bank',
-                                facet_col='Metric', facet_col_wrap=2,
-                                title="Monthly Operational Trends")
-            fig_m_trend.update_layout(height=400)
-            st.plotly_chart(fig_m_trend, use_container_width=True)
-        
-        with col2:
-            # Monthly performance comparison
-            latest_month = monthly_df['Month'].max()
-            m_latest = monthly_df[monthly_df['Month'] == latest_month]
-            
-            fig_m_bar = px.bar(m_latest, x='Metric', y='Value', color='Bank',
-                             title=f"Monthly Performance Comparison ({latest_month})",
-                             barmode='group')
-            st.plotly_chart(fig_m_bar, use_container_width=True)
+        # Monthly trend - show selected metric if it's a monthly metric
+        if monthly_df is not None and len(monthly_df) > 0:
+            clean_metric = selected_metric.replace('[M] ', '')
+            if clean_metric in monthly_df['Metric'].values:
+                # Selected metric is available in monthly data
+                metric_data = monthly_df[monthly_df['Metric'] == clean_metric]
+                
+                # Debug: Check which banks have data
+                banks_with_data = metric_data['Bank'].unique()
+                missing_banks = [bank for bank in all_selected_banks if bank not in banks_with_data]
+                
+                if missing_banks:
+                    st.warning(f"⚠️ No monthly data available for: {', '.join(missing_banks)} on metric '{clean_metric}'")
+                
+                if len(metric_data) > 0:
+                    fig_m_trend = px.line(metric_data, x='Month', y='Value', color='Bank',
+                                        title=f"{analysis_type} - {clean_metric} Trends",
+                                        color_discrete_sequence=['#FF0000', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#00FFFF', '#FFA500', '#800080'])
+                    fig_m_trend.update_layout(height=400)
+                    fig_m_trend.update_traces(line=dict(width=3))
+                    st.plotly_chart(fig_m_trend, use_container_width=True)
+                else:
+                    st.error("No monthly data available for the selected banks and metric combination")
+            else:
+                # Selected metric is quarterly only, show message
+                st.info(f"'{selected_metric}' is a quarterly metric. Please select a monthly metric from the sidebar for monthly analysis.")
+        else:
+            st.warning("No monthly data available")
     
     else:  # Combined View
-        st.markdown("### 🔄 Combined Quarterly & Monthly View")
-        st.info("**Integrated Analysis** - Correlation between quarterly strategic and monthly operational metrics")
+        st.markdown("### 🔄 Combined Quarterly & Simulated Monthly View")
+        st.info("**Integrated Analysis** - Correlation between quarterly strategic and simulated monthly operational metrics")
         
         # Create correlation analysis
-        col1, col2 = st.columns(2)
+        # Quarterly vs Monthly correlation
+        st.markdown("#### Quarterly Strategic Metrics")
+        q_metrics = ['ROA', 'ROE', 'Tier 1 Capital', 'NIM']
+        q_values = [1.25, 15.2, 12.8, 3.4]  # Sample values for selected base bank
         
-        with col1:
-            # Quarterly vs Monthly correlation
-            st.markdown("#### Quarterly Strategic Metrics")
-            q_metrics = ['ROA', 'ROE', 'Tier 1 Capital', 'NIM']
-            q_values = [1.25, 15.2, 12.8, 3.4]  # Sample values for selected base bank
-            
-            fig_q_gauge = px.bar(x=q_metrics, y=q_values,
-                               title=f"Q4 2024 - {selected_base_bank}",
-                               color=q_values, color_continuous_scale='RdYlGn')
-            fig_q_gauge.update_layout(showlegend=False, height=300)
-            st.plotly_chart(fig_q_gauge, use_container_width=True)
+        fig_q_gauge = px.bar(x=q_metrics, y=q_values,
+                           title=f"{analysis_type} - Quarterly Metrics (Q4 2024 - {selected_base_bank})",
+                           color=q_values, color_continuous_scale='RdYlGn')
+        fig_q_gauge.update_layout(showlegend=False, height=300)
+        st.plotly_chart(fig_q_gauge, use_container_width=True)
         
-        with col2:
-            st.markdown("#### Monthly Operational Metrics")
-            m_metrics = ['Loan Growth', 'Deposit Growth', 'Efficiency', 'Liquidity']
-            m_values = [2.8, 1.9, 62.5, 16.2]  # Sample monthly values
-            
-            fig_m_gauge = px.bar(x=m_metrics, y=m_values,
-                               title=f"Dec 2024 - {selected_base_bank}",
-                               color=m_values, color_continuous_scale='Blues')
-            fig_m_gauge.update_layout(showlegend=False, height=300)
-            st.plotly_chart(fig_m_gauge, use_container_width=True)
+        st.markdown("#### Monthly Operational Metrics")
+        m_metrics = ['Loan Growth', 'Deposit Growth', 'Efficiency', 'Liquidity']
+        m_values = [2.8, 1.9, 62.5, 16.2]  # Sample monthly values
+        
+        fig_m_gauge = px.bar(x=m_metrics, y=m_values,
+                           title=f"{analysis_type} - Monthly Metrics (Dec 2024 - {selected_base_bank})",
+                           color=m_values, color_continuous_scale='Blues')
+        fig_m_gauge.update_layout(showlegend=False, height=300)
+        st.plotly_chart(fig_m_gauge, use_container_width=True)
         
         # Correlation insights
         st.markdown("#### 🔍 Key Insights")
-        insights_col1, insights_col2 = st.columns(2)
         
-        with insights_col1:
-            st.markdown("""
-            **Quarterly Focus Areas:**
-            - 📊 ROA trending above peer average
-            - 🏛️ Strong regulatory capital position
-            - 📈 NIM improvement opportunities
-            - 💰 ROE competitive positioning
-            """)
+        st.markdown("""
+        **Quarterly Focus Areas:**
+        - 📊 ROA trending above peer average
+        - 🏛️ Strong regulatory capital position
+        - 📈 NIM improvement opportunities
+        - 💰 ROE competitive positioning
+        """)
         
-        with insights_col2:
-            st.markdown("""
-            **Monthly Operational Highlights:**
-            - 📈 Consistent loan growth momentum
-            - 💳 Stable deposit acquisition
-            - ⚡ Efficiency ratio optimization
-            - 💧 Healthy liquidity buffers
-            """)
+        st.markdown("""
+        **Monthly Operational Highlights:**
+        - 📈 Consistent loan growth momentum
+        - 💳 Stable deposit acquisition
+        - ⚡ Efficiency ratio optimization
+        - 💧 Healthy liquidity buffers
+        """)
     
     # Add another horizontal line before the summary section
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -1117,103 +1055,48 @@ Custom Bank B,2024-Q1,Return on Equity (ROE),14.8,Peer Bank"""
     # Add a horizontal line after the summary section
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # Display filtered data
+    # Display input data based on analysis type
     st.markdown("<h2 style='font-family: Arial, sans-serif; font-size: 2rem; text-align: center;'>Input Data</h2>", unsafe_allow_html=True)
+
+    # Use appropriate data based on analysis type
+    if analysis_type == "Monthly View" and 'monthly_df' in locals() and monthly_df is not None:
+        clean_metric = selected_metric.replace('[M] ', '')
+        display_data = monthly_df[monthly_df['Metric'] == clean_metric]
+        display_data = display_data[display_data['Bank'].isin(all_selected_banks)]
+    else:
+        display_data = filtered_data
 
     # Center the data table
     st.markdown("<div style='display: flex; justify-content: center; overflow-x: auto;'>", unsafe_allow_html=True)
-    styled_data = filtered_data.style.apply(
-        lambda row: ['background-color: lightblue'] * len(row) if row.name % 2 == 0 else ['background-color: #e6ffeb'] * len(row),
-        axis=1
-    ).set_table_styles([
-        {'selector': 'th', 'props': [('background-color', '#A020F0'), ('color', 'white'), ('font-weight', 'bold')]},
-        {'selector': 'td', 'props': [('border', '1px solid #A020F0'), ('padding', '0.5rem'), ('white-space', 'pre-wrap'), ('word-wrap', 'break-word')]},
-        {'selector': 'tr', 'props': [('max-height', '50px'), ('overflow', 'hidden'), ('text-overflow', 'ellipsis'), ('white-space', 'nowrap')]},
-        {'selector': 'table', 'props': [('border-collapse', 'collapse'), ('width', '100%'), ('font-family', 'Arial, sans-serif'), ('font-size', '0.9rem')]}
-    ], overwrite=False)
-    st.dataframe(styled_data)
-    st.markdown("</div>", unsafe_allow_html=True)
+    if len(display_data) > 0:
+        styled_data = display_data.style.apply(
+            lambda row: ['background-color: lightblue'] * len(row) if row.name % 2 == 0 else ['background-color: #e6ffeb'] * len(row),
+            axis=1
+        ).set_table_styles([
+            {'selector': 'th', 'props': [('background-color', '#A020F0'), ('color', 'white'), ('font-weight', 'bold')]},
+            {'selector': 'td', 'props': [('border', '1px solid #A020F0'), ('padding', '0.5rem'), ('white-space', 'pre-wrap'), ('word-wrap', 'break-word')]},
+            {'selector': 'tr', 'props': [('max-height', '50px'), ('overflow', 'hidden'), ('text-overflow', 'ellipsis'), ('white-space', 'nowrap')]},
+            {'selector': 'table', 'props': [('border-collapse', 'collapse'), ('width', '100%'), ('font-family', 'Arial, sans-serif'), ('font-size', '0.9rem')]}
+        ], overwrite=False)
+        st.dataframe(styled_data)
+        
+        # Download data as CSV
+        csv_buffer = io.StringIO()
+        display_data.to_csv(csv_buffer, index=False)
+        csv_bytes = csv_buffer.getvalue().encode('utf-8')
 
-    # Download data as CSV
-    csv_buffer = io.StringIO()
-    filtered_data.to_csv(csv_buffer, index=False)
-    csv_bytes = csv_buffer.getvalue().encode('utf-8')
-
-    # Download button
-    st.download_button(
-        label="Download CSV File",
-        data=csv_bytes,
-        file_name="data.csv",
-        mime="text/csv",
-    )
-    
-    # Chat Feature Section
-    st.markdown("---")
-    st.markdown("### 💬 Chat with Peer Analytics Data")
-    st.markdown("*Ask questions about the peer bank analysis and get AI-powered insights*")
-    
-    # Initialize chat history
-    if 'peer_chat_history' not in st.session_state:
-        st.session_state.peer_chat_history = []
-    
-    # Chat interface
-    chat_container = st.container()
-    
-    with chat_container:
-        # Display chat history
-        for i, message in enumerate(st.session_state.peer_chat_history):
-            if message["role"] == "user":
-                st.markdown(f"**You:** {message['content']}")
-            else:
-                st.markdown(f"**AI:** {message['content']}")
-        
-        # Sample questions dropdown - only answerable questions based on available data
-        peer_sample_questions = [
-            "Select a sample question or type your own below...",
-            f"How does {selected_base_bank} compare to its peers on {selected_metric}?",
-            "Which bank is performing best in the selected time period?",
-            f"What is the trend for {selected_metric} across all selected banks?",
-            f"Which bank has the highest {selected_metric} value?",
-            f"Which bank has the lowest {selected_metric} value?",
-            f"How much variation is there in {selected_metric} between banks?",
-            "What patterns do you see in the quarterly data?",
-            "Are there any banks showing concerning trends?",
-            "Which banks are most similar in performance?",
-            "What does the data suggest about competitive positioning?"
-        ]
-        
-        with st.expander("📝 Sample Questions", expanded=False):
-            for question in peer_sample_questions[1:]:  # Skip first placeholder
-                st.text(question)
-        
-        # Chat input
-        user_peer_question = st.text_input(
-            "Ask your question:", 
-            placeholder="Type your question here or copy from sample questions above...",
-            key="peer_chat_input"
+        # Download button
+        st.download_button(
+            label="Download CSV File",
+            data=csv_bytes,
+            file_name="data.csv",
+            mime="text/csv",
         )
-        
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            send_peer_button = st.button("Send", type="primary", key="peer_send_btn")
-        with col2:
-            if st.button("Clear Chat", key="peer_clear_btn"):
-                # Only clear chat history, don't refresh other sections
-                st.session_state.peer_chat_history = []
-                # Don't rerun to avoid refreshing other sections
-        
-        if send_peer_button and user_peer_question:
-            # Add user message to history
-            st.session_state.peer_chat_history.append({"role": "user", "content": user_peer_question})
-            
-            # Generate AI response
-            with st.spinner("AI is analyzing your question..."):
-                peer_chat_response = generate_peer_chat_response(user_peer_question, selected_base_bank, selected_peer_banks, selected_metric, filtered_data, analysis_type)
-            
-            # Add AI response to history
-            st.session_state.peer_chat_history.append({"role": "assistant", "content": peer_chat_response})
-            
-            st.rerun()
+    else:
+        st.warning("No data available for display")
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+
     
     # Footer note
     st.markdown("---")
