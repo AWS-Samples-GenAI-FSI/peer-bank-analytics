@@ -11,8 +11,7 @@ const Navbar = () => {
     <AppBar 
       position="static" 
       sx={{ 
-        background: 'rgba(255,255,255,0.1)',
-        backdropFilter: 'blur(10px)',
+        background: '#000080',
         boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
       }}
     >
